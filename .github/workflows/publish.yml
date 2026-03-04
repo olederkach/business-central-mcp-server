@@ -58,6 +58,7 @@ jobs:
           npm pkg delete scripts.prepublishOnly
 
       - name: Publish to GitHub Packages
+        continue-on-error: true
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
