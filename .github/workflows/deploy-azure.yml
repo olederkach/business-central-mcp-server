@@ -1,0 +1,120 @@
+name: Deploy to Azure Container Apps
+
+# Trigger manually or on release
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+      image_tag:
+        description: "Image tag (defaults to git SHA)"
+        required: false
+        type: string
+
+# ──────────────────────────────────────────────────────────────────
+#  REQUIRED SECRETS (set in GitHub → Settings → Secrets):
+#
+#  Azure authentication (OIDC — recommended):
+#    AZURE_CLIENT_ID         - App registration / service principal ID
+#    AZURE_TENANT_ID         - Azure AD tenant ID
+#    AZURE_SUBSCRIPTION_ID   - Azure subscription ID
+#
+#  Container Registry:
+#    ACR_NAME                - Azure Container Registry name (e.g. "mcpbcregistry")
+#
+#  Container App:
+#    CONTAINER_APP_NAME      - Azure Container App name (e.g. "mcp-bc-server")
+#    RESOURCE_GROUP          - Resource group (e.g. "mcp-production-rg")
+#
+#  Business Central credentials:
+#    BC_TENANT_ID            - BC / Entra ID tenant
+#    BC_CLIENT_ID            - App registration for BC API access
+#    BC_CLIENT_SECRET        - App registration secret
+#    BC_COMPANY_ID           - Target BC company ID
+#    BC_ENVIRONMENT_NAME     - "Sandbox" or "Production"
+#
+#  Server security:
+#    MCP_API_KEYS            - Comma-separated API keys for MCP auth
+#
+#  Optional:
+#    APPLICATIONINSIGHTS_CONNECTION_STRING - App Insights telemetry
+# ──────────────────────────────────────────────────────────────────
+
+env:
+  IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+    permissions:
+      id-token: write   # OIDC login
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Azure Login (OIDC federated credentials — no secrets stored) ──
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Build & push to ACR ──
+      - name: Login to ACR
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - name: Build and push image
+        run: |
+          IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/business-central-mcp-server
+          docker build -t $IMAGE:${{ env.IMAGE_TAG }} -t $IMAGE:latest .
+          docker push $IMAGE:${{ env.IMAGE_TAG }}
+          docker push $IMAGE:latest
+
+      # ── Deploy to Container Apps ──
+      - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          containerAppName: ${{ secrets.CONTAINER_APP_NAME }}
+          resourceGroup: ${{ secrets.RESOURCE_GROUP }}
+          imageToDeploy: ${{ secrets.ACR_NAME }}.azurecr.io/business-central-mcp-server:${{ env.IMAGE_TAG }}
+          environmentVariables: >-
+            NODE_ENV=production
+            PORT=3005
+            AUTH_MODE=api-key
+            LOG_LEVEL=info
+            METADATA_MODE=all
+            CACHE_TTL_SECONDS=3600
+            BC_TENANT_ID=secretref:bc-tenant-id
+            BC_CLIENT_ID=secretref:bc-client-id
+            BC_CLIENT_SECRET=secretref:bc-client-secret
+            BC_COMPANY_ID=secretref:bc-company-id
+            BC_ENVIRONMENT_NAME=${{ secrets.BC_ENVIRONMENT_NAME }}
+            MCP_API_KEYS=secretref:mcp-api-keys
+
+      # ── Health check ──
+      - name: Verify deployment
+        run: |
+          APP_URL=$(az containerapp show \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+
+          echo "Deployed to: https://$APP_URL"
+          echo "Waiting for health check..."
+          sleep 15
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$APP_URL/health" || true)
+          if [ "$STATUS" = "200" ]; then
+            echo "Health check passed!"
+          else
+            echo "Warning: Health check returned $STATUS (app may still be starting)"
+          fi

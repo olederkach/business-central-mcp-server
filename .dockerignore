@@ -1,0 +1,85 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+.claude/
+.cursor/
+*.md
+!README.md
+
+# Test files
+tests/
+test-results/
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+
+# Documentation
+docs/
+swagger/
+api_metadata/
+
+# Build artifacts (we want fresh builds in container)
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files (will be mounted or set via env vars)
+.env
+.env.*
+!.env.example
+
+# Scripts and configs not needed in container
+scripts/
+http/
+*.http
+.eslintrc*
+.prettierrc*
+jest.config.*
+eslint.config.*
+.husky/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local development
+.local/
+scratch/
+old/
+archive/
+migration/
+deployment/
+
+# Azure specific
+.azure/
+*.deployment.json
+
+# Security (should be mounted as secrets)
+.secrets/
+*.key
+*.pem
+*.cert
+
+# Config directory (configs will be copied as needed)
+config/
+
+# Cache
+.cache/
+.temp/

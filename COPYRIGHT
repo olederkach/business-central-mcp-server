@@ -1,0 +1,46 @@
+# Copyright Notice
+
+Copyright (c) 2025 Oleksandr Derkach. All rights reserved.
+
+Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Third-Party Licenses
+
+### Runtime Dependencies
+
+- **@modelcontextprotocol/sdk** - MIT License (Anthropic)
+- **express** - MIT License (TJ Holowaychuk, StrongLoop)
+- **axios** - MIT License (Matt Zabriskie)
+- **jsonwebtoken** - MIT License (Auth0)
+- **jwks-rsa** - MIT License (Auth0)
+- **@azure/identity** - MIT License (Microsoft)
+- **@azure/keyvault-secrets** - MIT License (Microsoft)
+- **@azure/msal-node** - MIT License (Microsoft)
+- **helmet** - MIT License (Adam Baldwin)
+- **cors** - MIT License (Troy Goode)
+- **lru-cache** - ISC License (Isaac Z. Schlueter)
+- **xml2js** - MIT License (Marek Kubica)
+- **ioredis** - MIT License (Zihua Li)
+- **prom-client** - Apache License 2.0 (Simon Nyberg)
+
+### Development Dependencies
+
+- **typescript** - Apache License 2.0 (Microsoft)
+- **eslint** - MIT License (OpenJS Foundation)
+- **prettier** - MIT License (James Long)
+
+For a complete list: `npm list --depth=0`
+
+## Trademarks
+
+- Microsoft Dynamics 365 Business Central is a trademark of Microsoft Corporation
+- Azure is a trademark of Microsoft Corporation
+- Model Context Protocol (MCP) is developed by Anthropic
+- Copilot Studio is a trademark of Microsoft Corporation
+
+## Contributions
+
+By contributing, you agree to license your contributions under the MIT License.
+
+Last Updated: March 2026
+Version: 2.2.7

@@ -1,0 +1,634 @@
+### Business Central MCP Server - REST Client Test File
+### VS Code: Install "REST Client" extension (humao.rest-client)
+### Replace variables below with your deployment values
+
+@baseUrl = https://your-server.azurecontainerapps.io
+@apiKey = your-api-key
+
+# ==============================================
+# HEALTH & INFO (no auth)
+# ==============================================
+
+### Health Check
+GET {{baseUrl}}/health
+
+### OpenAPI Spec (for Power Platform Custom Connector)
+GET {{baseUrl}}/openapi.json
+
+### OpenID Configuration (for OAuth/DCR discovery)
+GET {{baseUrl}}/.well-known/openid-configuration
+
+# ==============================================
+# SERVER INFO (requires auth)
+# ==============================================
+
+### Server Info
+GET {{baseUrl}}/info
+X-API-Key: {{apiKey}}
+
+### Detailed Health Check
+GET {{baseUrl}}/health/detailed
+X-API-Key: {{apiKey}}
+
+### Invalidate Cache
+POST {{baseUrl}}/cache/invalidate
+X-API-Key: {{apiKey}}
+
+# ==============================================
+# MCP PROTOCOL - INITIALIZATION
+# ==============================================
+
+### Initialize (protocol 2025-03-26 - Claude Desktop, AI Foundry)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "rest-client-test",
+      "version": "1.0.0"
+    }
+  }
+}
+
+### Initialize (protocol 2024-11-05 - Copilot Studio)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "copilot-studio-test",
+      "version": "1.0.0"
+    }
+  }
+}
+
+# ==============================================
+# MCP PROTOCOL - DISCOVERY
+# ==============================================
+
+### List Tools (14 generic tools)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+
+### List Resources (5 contextual resources)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "resources/list",
+  "params": {}
+}
+
+### List Prompts (5 prompt templates - protocol 2025-03-26 only)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "prompts/list",
+  "params": {}
+}
+
+# ==============================================
+# MCP PROTOCOL - RESOURCES (read)
+# ==============================================
+
+### Read Resource: Environment Info
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "resources/read",
+  "params": {
+    "uri": "bc://environment/info"
+  }
+}
+
+### Read Resource: API Context
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "resources/read",
+  "params": {
+    "uri": "bc://api/context"
+  }
+}
+
+### Read Resource: Companies List
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "resources/read",
+  "params": {
+    "uri": "bc://companies/list"
+  }
+}
+
+### Read Resource: Entities List
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "resources/read",
+  "params": {
+    "uri": "bc://entities/list"
+  }
+}
+
+### Read Resource: Tools Guide
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "resources/read",
+  "params": {
+    "uri": "bc://tools/guide"
+  }
+}
+
+# ==============================================
+# MCP PROTOCOL - PROMPTS (get)
+# ==============================================
+
+### Get Prompt: Query Customers
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "prompts/get",
+  "params": {
+    "name": "query-customers",
+    "arguments": {
+      "filter": "city eq 'Seattle'",
+      "top": "10"
+    }
+  }
+}
+
+### Get Prompt: Explore Entities
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "prompts/get",
+  "params": {
+    "name": "explore-entities",
+    "arguments": {}
+  }
+}
+
+# ==============================================
+# MCP TOOLS - API CONTEXT MANAGEMENT
+# ==============================================
+
+### List BC API Contexts
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "method": "tools/call",
+  "params": {
+    "name": "list_bc_api_contexts",
+    "arguments": {}
+  }
+}
+
+### Get Active API
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "method": "tools/call",
+  "params": {
+    "name": "get_active_api",
+    "arguments": {}
+  }
+}
+
+### Set Active API (switch to Microsoft Automation API)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 22,
+  "method": "tools/call",
+  "params": {
+    "name": "set_active_api",
+    "arguments": {
+      "publisher": "microsoft",
+      "group": "automation",
+      "version": "v1.0"
+    }
+  }
+}
+
+### Set Active API (switch back to Standard BC API v2.0)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "method": "tools/call",
+  "params": {
+    "name": "set_active_api",
+    "arguments": {
+      "publisher": "",
+      "group": "",
+      "version": "v2.0"
+    }
+  }
+}
+
+# ==============================================
+# MCP TOOLS - COMPANY MANAGEMENT
+# ==============================================
+
+### List Companies
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 30,
+  "method": "tools/call",
+  "params": {
+    "name": "list_companies",
+    "arguments": {}
+  }
+}
+
+### Get Active Company
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 31,
+  "method": "tools/call",
+  "params": {
+    "name": "get_active_company",
+    "arguments": {}
+  }
+}
+
+### Set Active Company (replace with actual company UUID from list_companies)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 32,
+  "method": "tools/call",
+  "params": {
+    "name": "set_active_company",
+    "arguments": {
+      "company_id": "<company-uuid>"
+    }
+  }
+}
+
+# ==============================================
+# MCP TOOLS - RESOURCE DISCOVERY
+# ==============================================
+
+### List Resources (entity names)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 40,
+  "method": "tools/call",
+  "params": {
+    "name": "list_resources",
+    "arguments": {}
+  }
+}
+
+### Get OData Metadata (search for "customer")
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 41,
+  "method": "tools/call",
+  "params": {
+    "name": "get_odata_metadata",
+    "arguments": {
+      "search": "customer",
+      "search_type": "entity",
+      "include_properties": true
+    }
+  }
+}
+
+### Get Resource Schema (customers entity)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "tools/call",
+  "params": {
+    "name": "get_resource_schema",
+    "arguments": {
+      "resource": "customers"
+    }
+  }
+}
+
+# ==============================================
+# MCP TOOLS - CRUD OPERATIONS
+# ==============================================
+
+### List Records - Customers (top 5)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 50,
+  "method": "tools/call",
+  "params": {
+    "name": "list_records",
+    "arguments": {
+      "resource": "customers",
+      "top": 5,
+      "select": "id,displayName,email,city,phoneNumber"
+    }
+  }
+}
+
+### List Records - Customers with filter
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 51,
+  "method": "tools/call",
+  "params": {
+    "name": "list_records",
+    "arguments": {
+      "resource": "customers",
+      "filter": "city eq 'Atlanta'",
+      "top": 10,
+      "orderby": "displayName asc"
+    }
+  }
+}
+
+### List Records - Items with substring search
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 52,
+  "method": "tools/call",
+  "params": {
+    "name": "list_records",
+    "arguments": {
+      "resource": "items",
+      "filter": "contains(displayName, 'bike')",
+      "top": 10
+    }
+  }
+}
+
+### List Records - Sales Orders with expand
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 53,
+  "method": "tools/call",
+  "params": {
+    "name": "list_records",
+    "arguments": {
+      "resource": "salesOrders",
+      "expand": "salesOrderLines",
+      "top": 5
+    }
+  }
+}
+
+### List Records - Vendors with pagination
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 54,
+  "method": "tools/call",
+  "params": {
+    "name": "list_records",
+    "arguments": {
+      "resource": "vendors",
+      "top": 20,
+      "skip": 0,
+      "orderby": "displayName asc"
+    }
+  }
+}
+
+### Find Records by Field (customer by email)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 55,
+  "method": "tools/call",
+  "params": {
+    "name": "find_records_by_field",
+    "arguments": {
+      "resource": "customers",
+      "field": "email",
+      "value": "robert.townes@contoso.com"
+    }
+  }
+}
+
+### Create Record (new customer)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 56,
+  "method": "tools/call",
+  "params": {
+    "name": "create_record",
+    "arguments": {
+      "resource": "customers",
+      "data": {
+        "displayName": "Test Customer",
+        "email": "test@example.com",
+        "city": "Seattle"
+      }
+    }
+  }
+}
+
+### Update Record (replace record_id with actual UUID)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 57,
+  "method": "tools/call",
+  "params": {
+    "name": "update_record",
+    "arguments": {
+      "resource": "customers",
+      "record_id": "<record-uuid>",
+      "data": {
+        "phoneNumber": "+1-555-0100"
+      }
+    }
+  }
+}
+
+### Delete Record (replace record_id with actual UUID)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 58,
+  "method": "tools/call",
+  "params": {
+    "name": "delete_record",
+    "arguments": {
+      "resource": "customers",
+      "record_id": "<record-uuid>"
+    }
+  }
+}
+
+# ==============================================
+# OAUTH ENDPOINTS (when AUTH_MODE=oauth)
+# ==============================================
+
+### DCR - Register Client
+POST {{baseUrl}}/oauth/register
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "client_name": "test-client",
+  "redirect_uris": ["https://example.com/callback"]
+}
+
+### DCR - List Registered Clients
+GET {{baseUrl}}/oauth/clients
+X-API-Key: {{apiKey}}
+
+# ==============================================
+# USING BEARER TOKEN (OAuth flow)
+# ==============================================
+
+### Initialize with Bearer Token
+# Replace <your-oauth-token> with a token from:
+#   az account get-access-token --resource api://<your-client-id> --query accessToken -o tsv
+# Or from the token endpoint:
+#   POST https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
+#   Body: client_id=...&client_secret=...&scope=api://<client-id>/.default&grant_type=client_credentials
+
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+Authorization: Bearer <your-oauth-token>
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "oauth-test",
+      "version": "1.0.0"
+    }
+  }
+}

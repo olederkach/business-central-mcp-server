@@ -1,0 +1,70 @@
+/**
+ * Request ID Middleware
+ * Generates and tracks unique request IDs for correlation and debugging
+ */
+
+import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
+import { logger } from '../utils/logger.js';
+
+// Extend Express Request type to include requestId
+declare global {
+  namespace Express {
+    interface Request {
+      requestId?: string;
+    }
+  }
+}
+
+/**
+ * Request ID middleware
+ * - Accepts X-Request-ID header from client
+ * - Generates UUID if not provided
+ * - Adds to response headers
+ * - Logs request details with ID
+ */
+export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Use existing X-Request-ID from client or generate new one
+  const requestId = (req.headers['x-request-id'] as string) || randomUUID();
+
+  // Attach to request object for use in handlers
+  req.requestId = requestId;
+
+  // Add to response headers for client correlation
+  res.setHeader('X-Request-ID', requestId);
+
+  // Log incoming request with ID
+  logger.info('Incoming request', {
+    requestId,
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    contentLength: req.headers['content-length']
+  });
+
+  // Track request timing
+  const startTime = Date.now();
+
+  // Log response on finish
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    logger.info('Request completed', {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      duration: `${duration}ms`
+    });
+  });
+
+  next();
+}
+
+/**
+ * Get request ID from request object
+ * Useful for adding to error logs and responses
+ */
+export function getRequestId(req: Request): string | undefined {
+  return req.requestId;
+}
