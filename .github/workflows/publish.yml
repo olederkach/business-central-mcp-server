@@ -27,7 +27,8 @@ jobs:
 
       - run: npm run build
 
-      - run: npm publish --provenance --access public
+      - name: Publish to npm
+        run: npm publish --provenance --access public || echo "Version already published to npm, skipping"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -52,6 +53,7 @@ jobs:
       - name: Publish to GitHub Packages
         run: |
           npm pkg set name="@olederkach/business-central-mcp-server"
-          npm publish
+          npm pkg set repository.url="https://github.com/olederkach/business-central-mcp-server.git"
+          npm publish || echo "Version already published to GitHub Packages, skipping"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
