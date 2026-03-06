@@ -58,9 +58,29 @@ export class ODataValidator {
       throw new Error('Invalid $expand parameter: must be a non-empty string');
     }
 
-    // Count nesting depth (count opening parentheses)
-    const depth = (expand.match(/\(/g) || []).length;
-    if (depth > this.MAX_EXPAND_DEPTH) {
+    // Count nesting depth (skip characters inside single-quoted strings)
+    let maxDepth = 0;
+    let currentDepth = 0;
+    let inStr = false;
+    for (let i = 0; i < expand.length; i++) {
+      if (expand[i] === "'" && !inStr) {
+        inStr = true;
+      } else if (expand[i] === "'" && inStr) {
+        if (i + 1 < expand.length && expand[i + 1] === "'") {
+          i++;
+        } else {
+          inStr = false;
+        }
+      } else if (!inStr) {
+        if (expand[i] === '(') {
+          currentDepth++;
+          if (currentDepth > maxDepth) maxDepth = currentDepth;
+        } else if (expand[i] === ')') {
+          currentDepth--;
+        }
+      }
+    }
+    if (maxDepth > this.MAX_EXPAND_DEPTH) {
       throw new Error(`$expand depth exceeds maximum of ${this.MAX_EXPAND_DEPTH}`);
     }
 
@@ -109,10 +129,28 @@ export class ODataValidator {
       }
     }
 
-    // Check for balanced parentheses
-    const openCount = (filter.match(/\(/g) || []).length;
-    const closeCount = (filter.match(/\)/g) || []).length;
-    if (openCount !== closeCount) {
+    // Check for balanced parentheses (skipping characters inside single-quoted strings)
+    let parenDepth = 0;
+    let inString = false;
+    for (let i = 0; i < filter.length; i++) {
+      if (filter[i] === "'" && !inString) {
+        inString = true;
+      } else if (filter[i] === "'" && inString) {
+        // Handle escaped quotes ('')
+        if (i + 1 < filter.length && filter[i + 1] === "'") {
+          i++; // skip escaped quote
+        } else {
+          inString = false;
+        }
+      } else if (!inString) {
+        if (filter[i] === '(') parenDepth++;
+        if (filter[i] === ')') parenDepth--;
+        if (parenDepth < 0) {
+          throw new Error('Unbalanced parentheses in $filter');
+        }
+      }
+    }
+    if (parenDepth !== 0) {
       throw new Error('Unbalanced parentheses in $filter');
     }
 

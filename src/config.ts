@@ -5,6 +5,7 @@
 
 import { MetadataMode } from './bc/metadata.js';
 import { BCConfig, BCConfigParser } from './bc/config.js';
+import { logger } from './utils/logger.js';
 
 export interface ServerConfig {
   env: string;
@@ -12,7 +13,6 @@ export interface ServerConfig {
   metadataMode: MetadataMode;
   authMode: 'api-key' | 'oauth';
   keyVaultName?: string;
-  corsOrigins: string[];
 }
 
 export function loadConfig(): ServerConfig {
@@ -30,7 +30,6 @@ export function loadConfig(): ServerConfig {
   }
 
   const keyVaultName = process.env.KEY_VAULT_NAME;
-  const corsOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
 
   if (authMode === 'oauth') {
     const required = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'];
@@ -42,7 +41,7 @@ export function loadConfig(): ServerConfig {
   }
 
   if (authMode === 'api-key' && !keyVaultName && !process.env.MCP_API_KEYS) {
-    console.warn('Warning: No API keys configured. Set MCP_API_KEYS or KEY_VAULT_NAME');
+    logger.warn('No API keys configured. Set MCP_API_KEYS or KEY_VAULT_NAME');
   }
 
   return {
@@ -50,8 +49,7 @@ export function loadConfig(): ServerConfig {
     port,
     metadataMode,
     authMode,
-    keyVaultName,
-    corsOrigins
+    keyVaultName
   };
 }
 
@@ -103,8 +101,7 @@ export function parseCLIArgs(args: string[]): CLIConfig {
         i++;
         break;
       case '--clientsecret':
-        console.warn('⚠️  WARNING: --clientSecret is deprecated. Secrets in CLI args are visible in process listings.');
-        console.warn('   Use BC_CLIENT_SECRET environment variable instead (via env block in MCP client config).');
+        logger.warn('--clientSecret is deprecated. Secrets in CLI args are visible in process listings. Use BC_CLIENT_SECRET environment variable instead.');
         config.clientSecret = nextArg;
         i++;
         break;
@@ -141,9 +138,9 @@ export function resolveBCConfig(cliConfig: CLIConfig): BCConfig {
   if (cliConfig.url) {
     try {
       bcConfig = BCConfigParser.parseFromUrl(cliConfig.url);
-      console.error('✓ Parsed BC config from URL');
+      logger.info('Parsed BC config from URL');
     } catch (error) {
-      console.warn('Warning: Failed to parse --url, using individual parameters');
+      logger.warn('Failed to parse --url, using individual parameters');
     }
   }
 
@@ -192,7 +189,7 @@ export function resolveBCConfig(cliConfig: CLIConfig): BCConfig {
   }
 
   if (!bcConfig.companyId) {
-    console.warn('⚠️  BC_COMPANY_ID not set. Use list_companies + set_active_company tools to select one at runtime.');
+    logger.warn('BC_COMPANY_ID not set. Use list_companies + set_active_company tools to select one at runtime.');
   }
 
   // Validate the complete config

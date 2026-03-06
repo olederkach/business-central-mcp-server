@@ -19,6 +19,7 @@ import { BCApiClient } from '../bc/client.js';
 import { logger } from '../utils/logger.js';
 import { LogSanitizer } from '../utils/log-sanitizer.js';
 import { validateJsonRpcMethod, validateToolName, validateResourceUri, ValidationError } from '../utils/input-validator.js';
+import { LRUCache } from 'lru-cache';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -59,7 +60,7 @@ interface ManagedSession {
 export class McpProtocolHandler {
   private oauthAuth?: OAuthAuth;
   private metadataMode: MetadataMode;
-  private sessions = new Map<string, ManagedSession>();
+  private sessions = new LRUCache<string, ManagedSession>({ max: 100, ttl: 30 * 60 * 1000 });
 
   constructor(metadataMode: MetadataMode = 'all') {
     this.metadataMode = metadataMode;
@@ -264,7 +265,7 @@ export class McpProtocolHandler {
   }
 
   private async handleToolsCall(params: any, req: Request): Promise<any> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -287,7 +288,7 @@ export class McpProtocolHandler {
 
     // Verify tool exists in generic tools
     if (!isGenericTool(toolName)) {
-      throw new Error(`Tool not found: ${toolName}. Only generic tools (13 tools) are supported.`);
+      throw new Error(`Tool not found: ${toolName}. Only generic tools (${GENERIC_TOOLS.length} tools) are supported.`);
     }
 
     logger.info(`Executing generic tool: ${toolName}`);
@@ -304,7 +305,7 @@ export class McpProtocolHandler {
   }
 
   private async handleResourcesList(req: Request): Promise<{ resources: any[] }> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -340,7 +341,7 @@ export class McpProtocolHandler {
   }
 
   private async handleResourcesRead(params: any, req: Request): Promise<any> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -513,7 +514,7 @@ export class McpProtocolHandler {
   }
 
   private async getAccessToken(req: Request, tenantId: string): Promise<string> {
-    const explicitToken = (req as any).accessToken;
+    const explicitToken = req.accessToken;
     if (explicitToken) {
       return explicitToken;
     }

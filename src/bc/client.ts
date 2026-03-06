@@ -48,7 +48,7 @@ export class BCApiClient {
     try {
       this.oauthAuth = new OAuthAuth();
     } catch (error) {
-      console.warn('OAuth not configured, will require external token');
+      logger.warn('OAuth not configured, will require external token');
     }
   }
 
@@ -530,7 +530,6 @@ export class BCApiClient {
    */
   getBaseApiPath(): string {
     const effectiveConfig = this.getEffectiveConfig();
-    const basePath = this.buildBaseApiPath(effectiveConfig);
-    return `/v2.0/${effectiveConfig.tenantId}/${effectiveConfig.environment}${basePath}`;
+    return this.buildBaseApiPath(effectiveConfig);
   }
 }

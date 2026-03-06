@@ -5,6 +5,18 @@
 
 import { VERSION } from '../version.js';
 
+function getServerUrl(): string {
+  const envUrl = process.env.SERVER_URL;
+  if (!envUrl) return 'http://localhost:3005';
+  try {
+    const parsed = new URL(envUrl);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return envUrl;
+    }
+  } catch { /* invalid URL */ }
+  return 'http://localhost:3005';
+}
+
 export const openApiSpec = {
   openapi: '3.0.0',
   info: {
@@ -18,8 +30,8 @@ export const openApiSpec = {
   },
   servers: [
     {
-      url: 'https://mcp-bc-f940e489.salmonhill-7df6cca4.eastus.azurecontainerapps.io',
-      description: 'Production server'
+      url: getServerUrl(),
+      description: 'API server'
     }
   ],
   security: [

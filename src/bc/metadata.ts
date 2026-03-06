@@ -8,6 +8,7 @@
  */
 
 import axios from 'axios';
+import { logger } from '../utils/logger.js';
 import { parseStringPromise } from 'xml2js';
 import { BCConfig, BCConfigParser } from './config.js';
 
@@ -53,7 +54,7 @@ export class MetadataParser {
     const metadataUrl = BCConfigParser.buildMetadataUrl(this.bcConfig);
     
     try {
-      console.log('Fetching BC metadata from:', metadataUrl);
+      logger.info('Fetching BC metadata from: ' + metadataUrl);
       
       const response = await axios.get(metadataUrl, {
         headers: {
@@ -63,9 +64,7 @@ export class MetadataParser {
         timeout: 30000
       });
 
-      console.log('BC metadata response status:', response.status);
-      console.log('BC metadata content type:', response.headers['content-type']);
-      console.log('BC metadata first 500 chars:', response.data.substring(0, 500));
+      logger.debug('BC metadata response', { status: response.status, contentType: response.headers['content-type'] });
 
       // Parse XML with proper options for EDMX format
       const edmx = await parseStringPromise(response.data, {
@@ -103,7 +102,7 @@ export class MetadataParser {
     }
 
     if (!dataServices) {
-      console.error('Failed to locate DataServices in EDMX. Available structure:', {
+      logger.error('Failed to locate DataServices in EDMX. Available structure:', undefined, {
         rootKeys: Object.keys(edmx),
         edmxEdmxKeys: edmx['edmx:Edmx'] ? Object.keys(edmx['edmx:Edmx']) : 'N/A',
         edmxKeys: edmx['Edmx'] ? Object.keys(edmx['Edmx']) : 'N/A'
@@ -111,7 +110,7 @@ export class MetadataParser {
       throw new Error('Invalid EDMX format: missing DataServices. Check logs for structure details.');
     }
 
-    console.log('DataServices found. Schema keys:', Object.keys(dataServices));
+    logger.debug('DataServices found. Schema keys: ' + Object.keys(dataServices).join(', '));
 
     const schemas = Array.isArray(dataServices.Schema) ? dataServices.Schema : [dataServices.Schema];
 
@@ -136,11 +135,11 @@ export class MetadataParser {
       }
     }
 
-    console.log(`Extracted ${entitySetMap.size} entity set mappings`);
+    logger.debug(`Extracted ${entitySetMap.size} entity set mappings`);
 
     const entities: EntityMetadata[] = [];
 
-    console.log(`Processing ${schemas.length} schema(s)`);
+    logger.debug(`Processing ${schemas.length} schema(s)`);
 
     for (const schema of schemas) {
       if (!schema) continue;
@@ -172,9 +171,9 @@ export class MetadataParser {
       }
     }
 
-    console.log(`✅ Successfully extracted ${entities.length} entities from BC metadata`);
+    logger.info(`Successfully extracted ${entities.length} entities from BC metadata`);
     if (entities.length > 0) {
-      console.log(`Sample entities: ${entities.slice(0, 5).map(e => e.name).join(', ')}`);
+      logger.debug(`Sample entities: ${entities.slice(0, 5).map(e => e.name).join(', ')}`);
     }
 
     return entities;

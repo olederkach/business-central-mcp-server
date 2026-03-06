@@ -22,9 +22,13 @@ import { ToolExecutor } from '../tools/executor.js';
 import { OAuthAuth } from '../auth/oauth.js';
 import { BC_PROMPTS, getPromptTemplate } from '../mcp/prompts.js';
 import { resolveBCConfig } from '../config.js';
+import { LRUCache } from 'lru-cache';
 
-// Store active SSE sessions
-const sessions = new Map<string, { transport: SSEServerTransport; server: Server }>();
+// Store active SSE sessions (bounded to prevent memory exhaustion from leaked connections)
+const sessions = new LRUCache<string, { transport: SSEServerTransport; server: Server }>({
+  max: 100,
+  ttl: 30 * 60 * 1000 // 30 minutes
+});
 
 /**
  * Create an MCP Server instance with all handlers configured

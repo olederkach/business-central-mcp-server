@@ -31,8 +31,8 @@ export function createDynamicOpenApiRoutes(): Router {
 
   // Cache for OpenAPI spec and tool mapping
   let cachedSpec: any = null;
-  let cachedToolMap: Map<string, string> = new Map(); // entitySetName -> base tool name
-  let cachedTools: Map<string, any> = new Map(); // full tool name -> tool object
+  const cachedToolMap: Map<string, string> = new Map(); // entitySetName -> base tool name
+  const cachedTools: Map<string, any> = new Map(); // full tool name -> tool object
   let cacheInitialized = false;
 
   // Get base URL from request or environment

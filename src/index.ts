@@ -46,8 +46,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('❌ Failed to start MCP Server:', error);
-  console.error('');
-  console.error('See .env.example for configuration requirements');
+  logger.error('Failed to start MCP Server', error instanceof Error ? error : undefined);
+  logger.error('See .env.example for configuration requirements');
   process.exit(1);
 });

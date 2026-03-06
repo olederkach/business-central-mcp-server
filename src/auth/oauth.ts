@@ -7,16 +7,22 @@ import { Request, Response, NextFunction } from 'express';
 import { ConfidentialClientApplication, AuthorizationUrlRequest, AuthorizationCodeRequest } from '@azure/msal-node';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import { randomUUID } from 'crypto';
+import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
 
-interface TokenCache {
+interface TokenCacheEntry {
   token: string;
   expiresAt: Date;
   tenantId: string;
 }
 
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 export class OAuthAuth {
   private msalClient: ConfidentialClientApplication;
-  private tokenCache: Map<string, TokenCache>;
+  private tokenCache: LRUCache<string, TokenCacheEntry>;
+  private pendingStates: Map<string, number>;
   private tenantId: string;
 
   /**
@@ -30,7 +36,8 @@ export class OAuthAuth {
     clientId?: string,
     clientSecret?: string
   ) {
-    this.tokenCache = new Map();
+    this.tokenCache = new LRUCache({ max: 50, ttl: 60 * 60 * 1000 });
+    this.pendingStates = new Map();
 
     // Priority: constructor params > environment variables
     this.tenantId =
@@ -88,30 +95,55 @@ export class OAuthAuth {
       return;
     }
 
-    (req as any).accessToken = token;
+    req.accessToken = token;
     next();
   }
 
   async initiateFlow(req: Request, res: Response): Promise<void> {
     const redirectUri = `${req.protocol}://${req.get('host')}/oauth/callback`;
-    
+    // Evict expired states first
+    for (const [key, ts] of this.pendingStates) {
+      if (Date.now() - ts > STATE_TTL_MS) this.pendingStates.delete(key);
+    }
+    // Cap pending states to prevent memory exhaustion from repeated unauthenticated flows
+    if (this.pendingStates.size >= 1000) {
+      logger.warn('OAuth pending states limit reached, rejecting new flow');
+      res.status(429).json({ error: 'Too many pending OAuth flows' });
+      return;
+    }
+    const state = randomUUID();
+    this.pendingStates.set(state, Date.now());
+
     const authUrlRequest: AuthorizationUrlRequest = {
       scopes: ['https://api.businesscentral.dynamics.com/.default'],
-      redirectUri
+      redirectUri,
+      state
     };
 
     try {
       const authUrl = await this.msalClient.getAuthCodeUrl(authUrlRequest);
       res.redirect(authUrl);
     } catch (error) {
-      console.error('OAuth initiate error:', error);
+      logger.error('OAuth initiate error', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Failed to initiate OAuth flow' });
     }
   }
 
   async handleCallback(req: Request, res: Response): Promise<void> {
-    const { code } = req.query;
-    
+    const { code, state } = req.query;
+
+    // Validate CSRF state parameter
+    if (!state || typeof state !== 'string' || !this.pendingStates.has(state)) {
+      res.status(400).json({ error: 'Invalid or missing state parameter' });
+      return;
+    }
+    const stateTs = this.pendingStates.get(state)!;
+    this.pendingStates.delete(state);
+    if (Date.now() - stateTs > STATE_TTL_MS) {
+      res.status(400).json({ error: 'State parameter expired' });
+      return;
+    }
+
     if (!code || typeof code !== 'string') {
       res.status(400).json({ error: 'Missing authorization code' });
       return;
@@ -139,7 +171,7 @@ export class OAuthAuth {
         scope: result.scopes?.join(' ')
       });
     } catch (error) {
-      console.error('OAuth callback error:', error);
+      logger.error('OAuth callback error', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Token exchange failed' });
     }
   }
@@ -167,7 +199,7 @@ export class OAuthAuth {
 
       return result.accessToken;
     } catch (error) {
-      console.error('Token acquisition error:', error);
+      logger.error('Token acquisition error', error instanceof Error ? error : undefined);
       throw new Error('Failed to get access token');
     }
   }
@@ -190,12 +222,17 @@ export class OAuthAuth {
       const key = await client.getSigningKey(decoded.header.kid);
       const signingKey = key.getPublicKey();
 
-      // Verify signature, issuer, and expiration
+      // Verify signature, issuer, audience, and expiration
+      const audience = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID;
+      if (!audience) {
+        logger.warn('JWT audience validation disabled: AZURE_CLIENT_ID / BC_CLIENT_ID not set. Tokens from other apps in the same tenant will be accepted.');
+      }
       jwt.verify(token, signingKey, {
         issuer: [
           `https://login.microsoftonline.com/${this.tenantId}/v2.0`,
           `https://sts.windows.net/${this.tenantId}/`
         ],
+        ...(audience ? { audience } : {}),
         clockTolerance: 30 // 30 seconds tolerance
       });
 
@@ -211,7 +248,7 @@ export function createOAuthMiddleware() {
     const auth = new OAuthAuth();
     return (req: Request, res: Response, next: NextFunction) => auth.authenticate(req, res, next);
   } catch (error) {
-    console.error('Failed to create OAuth middleware:', error);
+    logger.error('Failed to create OAuth middleware', error instanceof Error ? error : undefined);
     throw error;
   }
 }
@@ -224,7 +261,7 @@ export function createOAuthRoutes() {
       callback: (req: Request, res: Response) => auth.handleCallback(req, res)
     };
   } catch (error) {
-    console.error('Failed to create OAuth routes:', error);
+    logger.error('Failed to create OAuth routes', error instanceof Error ? error : undefined);
     throw error;
   }
 }

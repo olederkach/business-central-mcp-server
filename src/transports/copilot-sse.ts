@@ -16,6 +16,22 @@ import { GenericToolExecutor } from '../tools/generic-executor.js';
 import { BCApiClient } from '../bc/client.js';
 import { CompanyManager } from '../api/company-manager.js';
 import { ApiContextManager } from '../api/api-context-manager.js';
+import { validateToolName, validateResourceUri } from '../utils/input-validator.js';
+import { LRUCache } from 'lru-cache';
+
+interface CopilotSession {
+  bcClient: BCApiClient;
+  companyManager: CompanyManager;
+  apiContextManager: ApiContextManager;
+}
+
+const ALLOWED_METHODS = new Set([
+  'initialize', 'notifications/initialized',
+  'tools/list', 'tools/call',
+  'resources/list', 'resources/read',
+  'prompts/list', 'prompts/get',
+  'ping'
+]);
 
 export function createCopilotSseEndpoint(): Router {
   const router = Router();
@@ -32,6 +48,23 @@ export function createCopilotSseEndpoint(): Router {
     } catch (error) {
       logger.error('OAuth initialization failed', error instanceof Error ? error : undefined);
     }
+  }
+
+  // Session cache: reuse BCApiClient/CompanyManager/ApiContextManager across requests
+  const sessions = new LRUCache<string, CopilotSession>({ max: 50, ttl: 30 * 60 * 1000 });
+
+  function getOrCreateSession(config: typeof bcConfig): CopilotSession {
+    const key = `${config.tenantId}:${config.environment}`;
+    let session = sessions.get(key);
+    if (!session) {
+      const bcClientForDiscovery = new BCApiClient(config);
+      const apiContextManager = new ApiContextManager(bcClientForDiscovery);
+      const bcClient = new BCApiClient(config, apiContextManager);
+      const companyManager = new CompanyManager(bcClient);
+      session = { bcClient, companyManager, apiContextManager };
+      sessions.set(key, session);
+    }
+    return session;
   }
 
   /**
@@ -122,14 +155,9 @@ export function createCopilotSseEndpoint(): Router {
         };
       }
 
-      // Handle notifications (no id = notification, no response needed)
-      if (!('id' in body)) {
-        logger.info(`Notification received: ${body.method}`);
-        return null;
-      }
-
       // Handle missing method
-      if (!body.method) {
+      if (!body.method || typeof body.method !== 'string') {
+        if (!('id' in body)) return null; // notification without method — ignore
         return {
           jsonrpc: '2.0',
           id: body.id,
@@ -138,6 +166,32 @@ export function createCopilotSseEndpoint(): Router {
             message: 'Invalid Request: missing method'
           }
         };
+      }
+
+      // Validate JSON-RPC method against allowlist BEFORE processing (including notifications)
+      // Copilot SSE intentionally supports a narrower subset of MCP methods than the
+      // full spec (see ALLOWED_JSONRPC_METHODS in input-validator.ts for the complete list).
+      // This transport only handles the methods needed for Copilot Studio integration.
+      if (!ALLOWED_METHODS.has(body.method)) {
+        if (!('id' in body)) {
+          logger.warn('Notification with unrecognized method rejected');
+          return null;
+        }
+        logger.warn('Rejected unrecognized method', { method: body.method });
+        return {
+          jsonrpc: '2.0',
+          id: body.id,
+          error: {
+            code: -32601,
+            message: 'Method not found'
+          }
+        };
+      }
+
+      // Handle notifications (no id = notification, no response needed)
+      if (!('id' in body)) {
+        logger.info('Notification received', { method: body.method });
+        return null;
       }
 
       // Handle specific methods
@@ -187,8 +241,8 @@ export function createCopilotSseEndpoint(): Router {
       }
 
       if (body.method === 'tools/list') {
-        // Feature flag: Use generic tools if TOOL_MODE=generic
-        const useGenericTools = process.env.TOOL_MODE?.trim() === 'generic';
+        // Generic tools are the default; set TOOL_MODE=dynamic to use legacy metadata-generated tools
+        const useGenericTools = process.env.TOOL_MODE?.trim() !== 'dynamic';
 
         logger.info('🔧 tools/list request received', {
           toolMode: process.env.TOOL_MODE,
@@ -287,7 +341,22 @@ export function createCopilotSseEndpoint(): Router {
 
         const toolName = body.params.name;
         const toolArgs = body.params.arguments || {};
-        const useGenericTools = process.env.TOOL_MODE?.trim() === 'generic';
+        const useGenericTools = process.env.TOOL_MODE?.trim() !== 'dynamic';
+
+        // Validate tool name before execution
+        try {
+          validateToolName(toolName);
+        } catch {
+          logger.warn('Invalid tool name rejected', { toolName });
+          return {
+            jsonrpc: '2.0',
+            id: body.id,
+            error: {
+              code: -32602,
+              message: 'Invalid tool name'
+            }
+          };
+        }
 
         logger.info('🔧 tools/call request received', {
           toolName,
@@ -301,13 +370,7 @@ export function createCopilotSseEndpoint(): Router {
         if (useGenericTools && isGenericTool(toolName)) {
           logger.info(`⚡ Executing generic tool: ${toolName}`);
 
-          // Create BCApiClient without ApiContextManager first (for ApiContextManager to use)
-          const bcClientForDiscovery = new BCApiClient(bcConfig);
-          const apiContextManager = new ApiContextManager(bcClientForDiscovery);
-
-          // Create BCApiClient with ApiContextManager for dynamic API context support
-          const bcClient = new BCApiClient(bcConfig, apiContextManager);
-          const companyManager = new CompanyManager(bcClient);
+          const { bcClient, companyManager, apiContextManager } = getOrCreateSession(bcConfig);
           const executor = new GenericToolExecutor(bcClient, companyManager, apiContextManager, accessToken);
 
           const startTime = Date.now();
@@ -420,6 +483,21 @@ export function createCopilotSseEndpoint(): Router {
           };
         }
 
+        // Validate resource URI
+        try {
+          validateResourceUri(uri);
+        } catch {
+          logger.warn('Invalid resource URI rejected', { uri });
+          return {
+            jsonrpc: '2.0',
+            id: body.id,
+            error: {
+              code: -32602,
+              message: 'Invalid resource URI'
+            }
+          };
+        }
+
         // Get access token for BC API calls
         const accessToken = oauthAuth
           ? await oauthAuth.getAccessToken(bcConfig.tenantId)
@@ -439,8 +517,7 @@ export function createCopilotSseEndpoint(): Router {
                     mimeType: 'application/json',
                     text: JSON.stringify({
                       tenant: {
-                        id: bcConfig.tenantId,
-                        name: 'Oleksandr Derkach'
+                        id: bcConfig.tenantId
                       },
                       environment: {
                         name: bcConfig.environment,
@@ -451,8 +528,7 @@ export function createCopilotSseEndpoint(): Router {
                         baseUrl: `https://api.businesscentral.dynamics.com/${bcConfig.apiVersion}/${bcConfig.tenantId}/${bcConfig.environment}`
                       },
                       company: {
-                        id: companyId,
-                        name: 'Elevaite'
+                        id: companyId
                       }
                     }, null, 2)
                   }
@@ -798,9 +874,13 @@ Return the customer details including name, email, phone number, and address.`;
           const dateFilter = args.dateFilter || '';
           const top = args.top || '50';
 
-          let filters = [];
-          if (customerNumber) filters.push(`customerNumber eq '${customerNumber}'`);
-          if (dateFilter) filters.push(dateFilter);
+          const filters = [];
+          if (customerNumber) filters.push(`customerNumber eq '${customerNumber.replace(/'/g, "''")}'`);
+          if (dateFilter) {
+            // Sanitize dateFilter to prevent OData injection — strip dangerous chars
+            const safeDateFilter = String(dateFilter).replace(/[;'"\\<>]/g, '');
+            if (safeDateFilter) filters.push(safeDateFilter);
+          }
           const filterStr = filters.length > 0 ? filters.join(' and ') : '';
 
           const prompt = `Please query Business Central sales orders${filterStr ? ` with filter: ${filterStr}` : ''}. Limit results to ${top} records.

@@ -98,6 +98,10 @@ export async function startStdioServer(cliConfig: CLIConfig = {}): Promise<void>
     // Return generic tools (14 resource-agnostic tools)
     if (request.params?.cursor) {
       const startIndex = parseInt(request.params.cursor, 10);
+      // Validate cursor is a non-negative integer; if invalid, return full list
+      if (isNaN(startIndex) || startIndex < 0 || startIndex >= GENERIC_TOOLS.length) {
+        return { tools: GENERIC_TOOLS };
+      }
       const limit = 100;
       const endIndex = startIndex + limit;
       const paginatedTools = GENERIC_TOOLS.slice(startIndex, endIndex);

@@ -24,10 +24,10 @@ export class BCConfigParser {
    * Parse BC configuration from MCP request URL path
    */
   static parseFromUrl(url: string): BCConfig {
-    const path = url.replace(/^https?:\/\/[^\/]+/, '');
+    const path = url.replace(/^https?:\/\/[^/]+/, '');
     
     const standardMatch = path.match(
-      /\/([a-f0-9-]+)\/([^\/]+)\/api\/(v[\d.]+)\/companies\(([^)]+)\)/i
+      /\/([a-f0-9-]+)\/([^/]+)\/api\/(v[\d.]+)\/companies\(([^)]+)\)/i
     );
     
     if (standardMatch) {
@@ -41,7 +41,7 @@ export class BCConfigParser {
     }
     
     const customMatch = path.match(
-      /\/([a-f0-9-]+)\/([^\/]+)\/api\/([^\/]+)\/([^\/]+)\/(v[\d.]+)\/companies\(([^)]+)\)/i
+      /\/([a-f0-9-]+)\/([^/]+)\/api\/([^/]+)\/([^/]+)\/(v[\d.]+)\/companies\(([^)]+)\)/i
     );
     
     if (customMatch) {

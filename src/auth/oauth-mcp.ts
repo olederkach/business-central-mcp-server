@@ -10,6 +10,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
+import { logger } from '../utils/logger.js';
 
 interface TokenPayload {
   aud?: string; // Audience
@@ -107,7 +108,7 @@ export class MCPOAuthAuth {
       jwksRequestsPerMinute: 10
     });
 
-    console.log('MCP OAuth initialized with signature verification:', {
+    logger.info('MCP OAuth initialized with signature verification', {
       tenantId: this.tenantId,
       clientId: this.clientId,
       requiredScope: this.requiredScope,
@@ -140,10 +141,10 @@ export class MCPOAuthAuth {
       const userInfo = await this.validateToken(token);
 
       // Attach user info to request for logging/auditing
-      (req as any).user = userInfo;
-      (req as any).accessToken = token;
+      req.user = userInfo;
+      req.accessToken = token;
 
-      console.log('User authenticated:', {
+      logger.info('User authenticated', {
         userId: userInfo.userId,
         email: userInfo.email,
         name: userInfo.name,
@@ -192,7 +193,7 @@ export class MCPOAuthAuth {
       }
 
       // Generic error handler
-      console.error('OAuth authentication error:', error);
+      logger.error('OAuth authentication error', error instanceof Error ? error : undefined);
       res.status(500).json({
         error: 'Authentication failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -212,7 +213,7 @@ export class MCPOAuthAuth {
   async validateToken(token: string): Promise<UserInfo> {
     // Basic format check
     if (!token || typeof token !== 'string') {
-      console.error('Invalid token format: empty or not a string');
+      logger.error('Invalid token format: empty or not a string');
       throw new TokenValidationError(
         'Invalid token format',
         'invalid',
@@ -223,7 +224,7 @@ export class MCPOAuthAuth {
     // JWT tokens have 3 parts separated by dots
     const parts = token.split('.');
     if (parts.length !== 3) {
-      console.error('Invalid token format: not a valid JWT');
+      logger.error('Invalid token format: not a valid JWT');
       throw new TokenValidationError(
         'Invalid token format: not a valid JWT',
         'invalid',
@@ -234,7 +235,7 @@ export class MCPOAuthAuth {
     // Step 1: Decode header to get key ID (kid) WITHOUT verification
     const decoded = jwt.decode(token, { complete: true });
     if (!decoded || !decoded.header || !decoded.header.kid) {
-      console.error('Failed to decode token header or missing kid');
+      logger.error('Failed to decode token header or missing kid');
       throw new TokenValidationError(
         'Failed to decode token header',
         'invalid',
@@ -243,7 +244,7 @@ export class MCPOAuthAuth {
     }
 
     const kid = decoded.header.kid;
-    console.log('Token kid:', kid);
+    logger.debug('Token kid: ' + kid);
 
     // Step 2: Get the signing key from JWKS endpoint
     let signingKey: string;
@@ -251,7 +252,7 @@ export class MCPOAuthAuth {
       const key = await this.jwksClient.getSigningKey(kid);
       signingKey = key.getPublicKey();
     } catch (error) {
-      console.error('Failed to get signing key from JWKS:', error);
+      logger.error('Failed to get signing key from JWKS', error instanceof Error ? error : undefined);
       throw new TokenValidationError(
         'Failed to retrieve signing key',
         'verification_failed',
@@ -282,7 +283,7 @@ export class MCPOAuthAuth {
       payload = jwt.verify(token, signingKey, verifyOptions) as TokenPayload;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
-        console.error('Token expired:', {
+        logger.error('Token expired', error, {
           expiration: error.expiredAt?.toISOString()
         });
         throw new TokenValidationError(
@@ -291,21 +292,21 @@ export class MCPOAuthAuth {
           { expiredAt: error.expiredAt?.toISOString() }
         );
       } else if (error instanceof jwt.JsonWebTokenError) {
-        console.error('JWT verification failed:', error.message);
+        logger.error('JWT verification failed: ' + error.message);
         throw new TokenValidationError(
           `JWT verification failed: ${error.message}`,
           'verification_failed',
           { reason: error.message }
         );
       } else if (error instanceof jwt.NotBeforeError) {
-        console.error('Token not yet valid (nbf in future)');
+        logger.error('Token not yet valid (nbf in future)');
         throw new TokenValidationError(
           'Token is not yet valid',
           'invalid',
           { reason: 'Token nbf (not before) time is in the future' }
         );
       } else {
-        console.error('Token verification error:', error);
+        logger.error('Token verification error', error instanceof Error ? error : undefined);
         throw new TokenValidationError(
           'Token verification failed',
           'verification_failed',
@@ -317,9 +318,9 @@ export class MCPOAuthAuth {
     // Step 4: Validate scope (must have required scope)
     const scopes = payload.scp?.split(' ') || [];
     if (this.requiredScope && !scopes.includes(this.requiredScope)) {
-      console.error('Missing required scope:', {
+      logger.error('Missing required scope', undefined, {
         required: this.requiredScope,
-        actual: scopes
+        actual: scopes.join(' ')
       });
       throw new TokenValidationError(
         `Missing required scope: ${this.requiredScope}`,
@@ -337,7 +338,7 @@ export class MCPOAuthAuth {
       roles: payload.roles || []
     };
 
-    console.log('Token validated successfully with signature verification:', {
+    logger.info('Token validated successfully with signature verification', {
       userId: userInfo.userId,
       email: userInfo.email,
       scopes: userInfo.scopes
@@ -361,7 +362,7 @@ export class MCPOAuthAuth {
    * Extract user info from request (after authentication)
    */
   static getUserInfo(req: Request): UserInfo | undefined {
-    return (req as any).user;
+    return req.user;
   }
 }
 
@@ -382,7 +383,7 @@ export function createMCPOAuthMiddleware() {
     return (req: Request, res: Response, next: NextFunction) =>
       auth.authenticate(req, res, next);
   } catch (error) {
-    console.error('Failed to create MCP OAuth middleware:', error);
+    logger.error('Failed to create MCP OAuth middleware', error instanceof Error ? error : undefined);
     throw error;
   }
 }

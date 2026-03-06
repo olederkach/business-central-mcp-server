@@ -42,8 +42,8 @@ export class DualAuth {
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
 
-        // Detect token type: JWT has dots, API Key does not
-        const isJWT = token.includes('.');
+        // Detect token type: JWT has exactly 3 dot-separated parts (header.payload.signature)
+        const isJWT = token.split('.').length === 3;
 
         if (isJWT) {
           logger.debug('Attempting OAuth authentication (JWT token)');

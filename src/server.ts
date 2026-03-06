@@ -65,7 +65,11 @@ app.use(helmet({
 }));
 
 // SECURITY: Restrict CORS to trusted origins only
-const allowedOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
+const rawOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
+if (rawOrigins.includes('*')) {
+  logger.warn('CORS_ORIGINS=* is not allowed with credentials; treating as no origins (deny all cross-origin)');
+}
+const allowedOrigins = rawOrigins.filter(o => o !== '*');
 const corsEnabled = allowedOrigins.length > 0;
 
 app.use(cors({
@@ -81,7 +85,7 @@ app.use(cors({
     }
 
     // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
@@ -310,7 +314,7 @@ app.use('*', (req, res) => {
 
 app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
   // Get request ID for correlation
-  const requestId = (req as any).requestId;
+  const requestId = req.requestId;
 
   // SECURITY: Log full error details server-side
   logger.error('Unhandled error', error, {
