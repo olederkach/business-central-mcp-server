@@ -287,7 +287,7 @@ export class McpProtocolHandler {
 
     // Verify tool exists in generic tools
     if (!isGenericTool(toolName)) {
-      throw new Error(`Tool not found: ${toolName}. Only generic tools (13 tools) are supported.`);
+      throw new Error(`Tool not found: ${toolName}. Only generic tools (${GENERIC_TOOLS.length} tools) are supported.`);
     }
 
     logger.info(`Executing generic tool: ${toolName}`);
