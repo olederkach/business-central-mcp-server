@@ -65,6 +65,15 @@ describe('ODataValidator', () => {
       expect(() => ODataValidator.validateFilter(null as any)).toThrow('must be a non-empty string');
       expect(() => ODataValidator.validateFilter('')).toThrow('must be a non-empty string');
     });
+
+    it('accepts parentheses inside single-quoted strings (US-09)', () => {
+      expect(ODataValidator.validateFilter("name eq 'a(b'")).toBe("name eq 'a(b'");
+      expect(ODataValidator.validateFilter("name eq 'foo(bar)baz'")).toBe("name eq 'foo(bar)baz'");
+    });
+
+    it('handles escaped quotes inside strings (US-09)', () => {
+      expect(ODataValidator.validateFilter("name eq 'it''s'")).toBe("name eq 'it''s'");
+    });
   });
 
   describe('validateExpand', () => {
@@ -87,6 +96,11 @@ describe('ODataValidator', () => {
 
     it('rejects non-string input', () => {
       expect(() => ODataValidator.validateExpand(null as any)).toThrow('must be a non-empty string');
+    });
+
+    it('counts depth correctly with quoted strings containing parens (US-09)', () => {
+      // Parens inside quotes should not count toward depth
+      expect(ODataValidator.validateExpand("lines($filter=type eq 'y(z)')")).toBe("lines($filter=type eq 'y(z)')");
     });
   });
 

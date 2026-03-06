@@ -296,6 +296,39 @@ describe('GenericToolExecutor', () => {
       expect(queryString).toContain(encodeURIComponent('blocked eq true'));
     });
 
+    it('treats empty string as string, not numeric (US-09)', async () => {
+      mockBcClient.get.mockResolvedValueOnce({ value: [] });
+      await executor.execute({
+        toolName: 'find_records_by_field',
+        arguments: { resource: 'customers', field: 'name', value: '' }
+      });
+      expect(mockBcClient.get).toHaveBeenCalled();
+      const queryString = mockBcClient.get.mock.calls[0][1] as string;
+      // Empty string should be quoted, not treated as numeric 0
+      expect(queryString).toContain(encodeURIComponent("name eq ''"));
+    });
+
+    it('treats Infinity string as string, not numeric (US-09)', async () => {
+      mockBcClient.get.mockResolvedValueOnce({ value: [] });
+      await executor.execute({
+        toolName: 'find_records_by_field',
+        arguments: { resource: 'customers', field: 'name', value: 'Infinity' }
+      });
+      expect(mockBcClient.get).toHaveBeenCalled();
+      const queryString = mockBcClient.get.mock.calls[0][1] as string;
+      expect(queryString).toContain(encodeURIComponent("name eq 'Infinity'"));
+    });
+
+    it('handles actual boolean true (US-09)', async () => {
+      mockBcClient.get.mockResolvedValueOnce({ value: [] });
+      await executor.execute({
+        toolName: 'find_records_by_field',
+        arguments: { resource: 'customers', field: 'blocked', value: true }
+      });
+      const queryString = mockBcClient.get.mock.calls[0][1] as string;
+      expect(queryString).toContain(encodeURIComponent('blocked eq true'));
+    });
+
     it('returns error when value is undefined', async () => {
       const result = await executor.execute({
         toolName: 'find_records_by_field',

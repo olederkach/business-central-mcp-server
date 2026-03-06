@@ -843,12 +843,15 @@ export class GenericToolExecutor {
       if (guidRegex.test(value)) {
         // GUID format
         filterValue = `guid'${value}'`;
-      } else if (typeof value === 'number' || !isNaN(Number(value))) {
-        // Numeric value (no quotes)
+      } else if (typeof value === 'number' && isFinite(value)) {
+        // Numeric value (no quotes) — only actual number types
         filterValue = String(value);
-      } else if (value === 'true' || value === 'false') {
-        // Boolean value (no quotes)
+      } else if (typeof value === 'string' && value !== '' && isFinite(Number(value))) {
+        // String that represents a finite number
         filterValue = value;
+      } else if (value === 'true' || value === 'false' || value === true || value === false) {
+        // Boolean value (no quotes)
+        filterValue = String(value);
       } else {
         // String value (with quotes)
         filterValue = `'${value.replace(/'/g, "''")}'`;  // Escape single quotes
