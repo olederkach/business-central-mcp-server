@@ -95,7 +95,7 @@ export class MCPOAuthAuth {
     }
 
     // Configuration options
-    this.requiredScope = options?.requiredScope || 'MCP.Access';
+    this.requiredScope = options?.requiredScope ?? 'MCP.Access';
     this.validateAudience = options?.validateAudience ?? true;
     this.validateIssuer = options?.validateIssuer ?? true;
 
@@ -315,17 +315,22 @@ export class MCPOAuthAuth {
       }
     }
 
-    // Step 4: Validate scope (must have required scope)
+    // Step 4: Validate scope or role (must have required permission)
+    // Delegated tokens use 'scp' claim, client_credentials tokens use 'roles' claim
     const scopes = payload.scp?.split(' ') || [];
-    if (this.requiredScope && !scopes.includes(this.requiredScope)) {
-      logger.error('Missing required scope', undefined, {
+    const roles = payload.roles || [];
+    const hasScope = scopes.includes(this.requiredScope);
+    const hasRole = roles.includes(this.requiredScope);
+    if (this.requiredScope && !hasScope && !hasRole) {
+      logger.error('Missing required scope/role', undefined, {
         required: this.requiredScope,
-        actual: scopes.join(' ')
+        scopes: scopes.join(' '),
+        roles: roles.join(' ')
       });
       throw new TokenValidationError(
         `Missing required scope: ${this.requiredScope}`,
         'missing_scope',
-        { required: this.requiredScope, actual: scopes }
+        { required: this.requiredScope, scopes, roles }
       );
     }
 
@@ -372,7 +377,8 @@ export class MCPOAuthAuth {
 export function createMCPOAuthMiddleware() {
   try {
     // Read required scope from environment variable
-    const requiredScope = process.env.MCP_OAUTH_REQUIRED_SCOPE || 'MCP.Access';
+    // Set to empty string to disable scope validation (useful for client_credentials flow)
+    const requiredScope = process.env.MCP_OAUTH_REQUIRED_SCOPE ?? 'MCP.Access';
 
     const auth = new MCPOAuthAuth(
       undefined, // tenantId - will read from env

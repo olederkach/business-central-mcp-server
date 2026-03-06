@@ -22,7 +22,8 @@ export class DualAuth {
 
   constructor(keyVaultName?: string) {
     this.apiKeyAuth = new ApiKeyAuth(keyVaultName);
-    this.oauthAuth = new MCPOAuthAuth();
+    const requiredScope = process.env.MCP_OAUTH_REQUIRED_SCOPE ?? 'MCP.Access';
+    this.oauthAuth = new MCPOAuthAuth(undefined, undefined, { requiredScope });
     logger.info('Dual authentication initialized (API Key + OAuth)');
   }
 
