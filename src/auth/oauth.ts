@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ConfidentialClientApplication, AuthorizationUrlRequest, AuthorizationCodeRequest } from '@azure/msal-node';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import { logger } from '../utils/logger.js';
 
 interface TokenCache {
   token: string;
@@ -104,7 +105,7 @@ export class OAuthAuth {
       const authUrl = await this.msalClient.getAuthCodeUrl(authUrlRequest);
       res.redirect(authUrl);
     } catch (error) {
-      console.error('OAuth initiate error:', error);
+      logger.error('OAuth initiate error', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Failed to initiate OAuth flow' });
     }
   }
@@ -139,7 +140,7 @@ export class OAuthAuth {
         scope: result.scopes?.join(' ')
       });
     } catch (error) {
-      console.error('OAuth callback error:', error);
+      logger.error('OAuth callback error', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Token exchange failed' });
     }
   }
@@ -167,7 +168,7 @@ export class OAuthAuth {
 
       return result.accessToken;
     } catch (error) {
-      console.error('Token acquisition error:', error);
+      logger.error('Token acquisition error', error instanceof Error ? error : undefined);
       throw new Error('Failed to get access token');
     }
   }
@@ -211,7 +212,7 @@ export function createOAuthMiddleware() {
     const auth = new OAuthAuth();
     return (req: Request, res: Response, next: NextFunction) => auth.authenticate(req, res, next);
   } catch (error) {
-    console.error('Failed to create OAuth middleware:', error);
+    logger.error('Failed to create OAuth middleware', error instanceof Error ? error : undefined);
     throw error;
   }
 }
@@ -224,7 +225,7 @@ export function createOAuthRoutes() {
       callback: (req: Request, res: Response) => auth.handleCallback(req, res)
     };
   } catch (error) {
-    console.error('Failed to create OAuth routes:', error);
+    logger.error('Failed to create OAuth routes', error instanceof Error ? error : undefined);
     throw error;
   }
 }

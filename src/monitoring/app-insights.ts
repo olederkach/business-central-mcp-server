@@ -5,6 +5,7 @@
 
 import * as appInsights from 'applicationinsights';
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger.js';
 
 let telemetryClient: appInsights.TelemetryClient | null = null;
 
@@ -12,7 +13,7 @@ export function initializeAppInsights(): appInsights.TelemetryClient | null {
   const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
 
   if (!connectionString) {
-    console.warn('Application Insights not configured. Set APPLICATIONINSIGHTS_CONNECTION_STRING for telemetry.');
+    logger.warn('Application Insights not configured. Set APPLICATIONINSIGHTS_CONNECTION_STRING for telemetry.');
     return null;
   }
 
@@ -37,10 +38,10 @@ export function initializeAppInsights(): appInsights.TelemetryClient | null {
       telemetryClient.context.tags[telemetryClient.context.keys.cloudRoleInstance] = process.env.CONTAINER_APP_NAME || 'local';
     }
 
-    console.log('✅ Application Insights initialized');
+    logger.info('Application Insights initialized');
     return telemetryClient;
   } catch (error) {
-    console.error('Failed to initialize Application Insights:', error);
+    logger.error('Failed to initialize Application Insights', error instanceof Error ? error : undefined);
     return null;
   }
 }

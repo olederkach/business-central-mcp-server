@@ -48,7 +48,7 @@ export class BCApiClient {
     try {
       this.oauthAuth = new OAuthAuth();
     } catch (error) {
-      console.warn('OAuth not configured, will require external token');
+      logger.warn('OAuth not configured, will require external token');
     }
   }
 
