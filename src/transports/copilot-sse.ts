@@ -874,7 +874,7 @@ Return the customer details including name, email, phone number, and address.`;
           const dateFilter = args.dateFilter || '';
           const top = args.top || '50';
 
-          let filters = [];
+          const filters = [];
           if (customerNumber) filters.push(`customerNumber eq '${customerNumber.replace(/'/g, "''")}'`);
           if (dateFilter) {
             // Sanitize dateFilter to prevent OData injection — strip dangerous chars

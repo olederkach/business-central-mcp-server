@@ -120,6 +120,7 @@ helm/values-*.yaml
 
 # MCP server configuration (contains secrets)
 .mcp.json
+mcp.json
 
 # npm pack artifacts
 *.tgzmcp.json

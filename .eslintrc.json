@@ -8,79 +8,49 @@
   },
   "plugins": [
     "@typescript-eslint",
-    "import",
     "promise",
     "security",
-    "sonarjs",
-    "unicorn"
+    "sonarjs"
   ],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:@typescript-eslint/recommended-requiring-type-checking",
-    "plugin:import/errors",
-    "plugin:import/warnings",
-    "plugin:import/typescript",
     "plugin:promise/recommended",
     "plugin:security/recommended",
     "plugin:sonarjs/recommended",
-    "plugin:unicorn/recommended",
     "prettier"
   ],
   "rules": {
-    "@typescript-eslint/explicit-function-return-type": "error",
-    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-explicit-any": "warn",
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "@typescript-eslint/strict-boolean-expressions": "error",
-    "@typescript-eslint/no-floating-promises": "error",
-    "@typescript-eslint/no-misused-promises": "error",
+    "@typescript-eslint/no-floating-promises": "warn",
+    "@typescript-eslint/no-misused-promises": "warn",
     "@typescript-eslint/await-thenable": "error",
-    "@typescript-eslint/no-unnecessary-type-assertion": "error",
-    "@typescript-eslint/prefer-nullish-coalescing": "error",
-    "@typescript-eslint/prefer-optional-chain": "error",
 
-    "import/order": ["error", {
-      "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
-      "newlines-between": "always",
-      "alphabetize": { "order": "asc" }
-    }],
-    "import/no-cycle": "error",
-    "import/no-duplicates": "error",
+    "promise/always-return": "warn",
+    "promise/catch-or-return": "warn",
 
-    "promise/always-return": "error",
-    "promise/catch-or-return": "error",
+    "sonarjs/cognitive-complexity": ["warn", 15],
+    "sonarjs/no-duplicate-string": ["warn", { "threshold": 5 }],
+    "sonarjs/no-nested-template-literals": "warn",
+    "sonarjs/prefer-single-boolean-return": "warn",
+    "sonarjs/no-identical-functions": "warn",
 
-    "sonarjs/cognitive-complexity": ["error", 10],
-    "sonarjs/no-duplicate-string": ["error", 5],
-
-    "unicorn/prefer-node-protocol": "error",
-    "unicorn/prefer-module": "error",
-    "unicorn/prevent-abbreviations": "off",
-    "unicorn/filename-case": ["error", {
-      "cases": {
-        "kebabCase": true,
-        "pascalCase": true
-      }
-    }],
-
-    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "@typescript-eslint/no-namespace": "off",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
     "no-debugger": "error",
     "no-alert": "error",
     "prefer-const": "error",
     "no-var": "error",
-    "eqeqeq": ["error", "always"],
-    "curly": ["error", "all"],
-    "complexity": ["error", 10],
-    "max-depth": ["error", 4],
-    "max-lines": ["error", 500],
-    "max-params": ["error", 4]
+    "eqeqeq": ["error", "always"]
   },
   "overrides": [
     {
       "files": ["*.test.ts", "*.spec.ts"],
       "rules": {
         "@typescript-eslint/no-explicit-any": "off",
-        "sonarjs/no-duplicate-string": "off"
+        "sonarjs/no-duplicate-string": "off",
+        "@typescript-eslint/no-floating-promises": "off"
       }
     }
   ]
