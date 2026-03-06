@@ -16,6 +16,26 @@ on:
         description: "Image tag (defaults to git SHA)"
         required: false
         type: string
+      acr_name:
+        description: "Azure Container Registry name (e.g. mcpbcregistry)"
+        required: true
+        type: string
+      container_app_name:
+        description: "Azure Container App name (e.g. mcp-bc-server)"
+        required: true
+        type: string
+      resource_group:
+        description: "Azure Resource Group (e.g. mcp-production-rg)"
+        required: true
+        type: string
+      bc_environment_name:
+        description: "BC environment name"
+        required: true
+        default: "Production"
+        type: choice
+        options:
+          - Production
+          - Sandbox
 
 # ──────────────────────────────────────────────────────────────────
 #  REQUIRED SECRETS (set in GitHub → Settings → Secrets):
@@ -25,19 +45,11 @@ on:
 #    AZURE_TENANT_ID         - Azure AD tenant ID
 #    AZURE_SUBSCRIPTION_ID   - Azure subscription ID
 #
-#  Container Registry:
-#    ACR_NAME                - Azure Container Registry name (e.g. "mcpbcregistry")
-#
-#  Container App:
-#    CONTAINER_APP_NAME      - Azure Container App name (e.g. "mcp-bc-server")
-#    RESOURCE_GROUP          - Resource group (e.g. "mcp-production-rg")
-#
 #  Business Central credentials:
 #    BC_TENANT_ID            - BC / Entra ID tenant
 #    BC_CLIENT_ID            - App registration for BC API access
 #    BC_CLIENT_SECRET        - App registration secret
 #    BC_COMPANY_ID           - Target BC company ID
-#    BC_ENVIRONMENT_NAME     - "Sandbox" or "Production"
 #
 #  Server security:
 #    MCP_API_KEYS            - Comma-separated API keys for MCP auth
@@ -60,6 +72,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ── Validate required secrets ──
+      - name: Validate required secrets
+        run: |
+          missing=()
+          [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && missing+=("AZURE_CLIENT_ID")
+          [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && missing+=("AZURE_TENANT_ID")
+          [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && missing+=("AZURE_SUBSCRIPTION_ID")
+          [ -z "${{ secrets.BC_TENANT_ID }}" ] && missing+=("BC_TENANT_ID")
+          [ -z "${{ secrets.BC_CLIENT_ID }}" ] && missing+=("BC_CLIENT_ID")
+          [ -z "${{ secrets.BC_CLIENT_SECRET }}" ] && missing+=("BC_CLIENT_SECRET")
+          [ -z "${{ secrets.BC_COMPANY_ID }}" ] && missing+=("BC_COMPANY_ID")
+          [ -z "${{ secrets.MCP_API_KEYS }}" ] && missing+=("MCP_API_KEYS")
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            echo "Configure these in GitHub → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "All required secrets are configured"
+
       # ── Azure Login (OIDC federated credentials — no secrets stored) ──
       - name: Login to Azure
         uses: azure/login@v2
@@ -70,22 +102,35 @@ jobs:
 
       # ── Build & push to ACR ──
       - name: Login to ACR
-        run: az acr login --name ${{ secrets.ACR_NAME }}
+        run: az acr login --name ${{ inputs.acr_name }}
 
       - name: Build and push image
         run: |
-          IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/business-central-mcp-server
+          IMAGE=${{ inputs.acr_name }}.azurecr.io/business-central-mcp-server
           docker build -t $IMAGE:${{ env.IMAGE_TAG }} -t $IMAGE:latest .
           docker push $IMAGE:${{ env.IMAGE_TAG }}
           docker push $IMAGE:latest
+
+      # ── Configure Container App secrets from GitHub Secrets ──
+      - name: Set Container App secrets
+        run: |
+          az containerapp secret set \
+            --name ${{ inputs.container_app_name }} \
+            --resource-group ${{ inputs.resource_group }} \
+            --secrets \
+              bc-tenant-id="${{ secrets.BC_TENANT_ID }}" \
+              bc-client-id="${{ secrets.BC_CLIENT_ID }}" \
+              bc-client-secret="${{ secrets.BC_CLIENT_SECRET }}" \
+              bc-company-id="${{ secrets.BC_COMPANY_ID }}" \
+              mcp-api-keys="${{ secrets.MCP_API_KEYS }}"
 
       # ── Deploy to Container Apps ──
       - name: Deploy to Azure Container Apps
         uses: azure/container-apps-deploy-action@v1
         with:
-          containerAppName: ${{ secrets.CONTAINER_APP_NAME }}
-          resourceGroup: ${{ secrets.RESOURCE_GROUP }}
-          imageToDeploy: ${{ secrets.ACR_NAME }}.azurecr.io/business-central-mcp-server:${{ env.IMAGE_TAG }}
+          containerAppName: ${{ inputs.container_app_name }}
+          resourceGroup: ${{ inputs.resource_group }}
+          imageToDeploy: ${{ inputs.acr_name }}.azurecr.io/business-central-mcp-server:${{ env.IMAGE_TAG }}
           environmentVariables: >-
             NODE_ENV=production
             PORT=3005
@@ -97,15 +142,15 @@ jobs:
             BC_CLIENT_ID=secretref:bc-client-id
             BC_CLIENT_SECRET=secretref:bc-client-secret
             BC_COMPANY_ID=secretref:bc-company-id
-            BC_ENVIRONMENT_NAME=${{ secrets.BC_ENVIRONMENT_NAME }}
+            BC_ENVIRONMENT_NAME=${{ inputs.bc_environment_name }}
             MCP_API_KEYS=secretref:mcp-api-keys
 
       # ── Health check ──
       - name: Verify deployment
         run: |
           APP_URL=$(az containerapp show \
-            --name ${{ secrets.CONTAINER_APP_NAME }} \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --name ${{ inputs.container_app_name }} \
+            --resource-group ${{ inputs.resource_group }} \
             --query "properties.configuration.ingress.fqdn" -o tsv)
 
           echo "Deployed to: https://$APP_URL"
