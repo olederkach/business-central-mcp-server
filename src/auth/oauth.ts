@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ConfidentialClientApplication, AuthorizationUrlRequest, AuthorizationCodeRequest } from '@azure/msal-node';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import { randomUUID } from 'crypto';
 
 interface TokenCache {
   token: string;
@@ -14,9 +15,12 @@ interface TokenCache {
   tenantId: string;
 }
 
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 export class OAuthAuth {
   private msalClient: ConfidentialClientApplication;
   private tokenCache: Map<string, TokenCache>;
+  private pendingStates: Map<string, number>;
   private tenantId: string;
 
   /**
@@ -31,6 +35,7 @@ export class OAuthAuth {
     clientSecret?: string
   ) {
     this.tokenCache = new Map();
+    this.pendingStates = new Map();
 
     // Priority: constructor params > environment variables
     this.tenantId =
@@ -94,10 +99,17 @@ export class OAuthAuth {
 
   async initiateFlow(req: Request, res: Response): Promise<void> {
     const redirectUri = `${req.protocol}://${req.get('host')}/oauth/callback`;
-    
+    const state = randomUUID();
+    this.pendingStates.set(state, Date.now());
+    // Evict expired states
+    for (const [key, ts] of this.pendingStates) {
+      if (Date.now() - ts > STATE_TTL_MS) this.pendingStates.delete(key);
+    }
+
     const authUrlRequest: AuthorizationUrlRequest = {
       scopes: ['https://api.businesscentral.dynamics.com/.default'],
-      redirectUri
+      redirectUri,
+      state
     };
 
     try {
@@ -110,8 +122,20 @@ export class OAuthAuth {
   }
 
   async handleCallback(req: Request, res: Response): Promise<void> {
-    const { code } = req.query;
-    
+    const { code, state } = req.query;
+
+    // Validate CSRF state parameter
+    if (!state || typeof state !== 'string' || !this.pendingStates.has(state)) {
+      res.status(400).json({ error: 'Invalid or missing state parameter' });
+      return;
+    }
+    const stateTs = this.pendingStates.get(state)!;
+    this.pendingStates.delete(state);
+    if (Date.now() - stateTs > STATE_TTL_MS) {
+      res.status(400).json({ error: 'State parameter expired' });
+      return;
+    }
+
     if (!code || typeof code !== 'string') {
       res.status(400).json({ error: 'Missing authorization code' });
       return;
@@ -190,12 +214,14 @@ export class OAuthAuth {
       const key = await client.getSigningKey(decoded.header.kid);
       const signingKey = key.getPublicKey();
 
-      // Verify signature, issuer, and expiration
+      // Verify signature, issuer, audience, and expiration
+      const audience = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID;
       jwt.verify(token, signingKey, {
         issuer: [
           `https://login.microsoftonline.com/${this.tenantId}/v2.0`,
           `https://sts.windows.net/${this.tenantId}/`
         ],
+        ...(audience ? { audience } : {}),
         clockTolerance: 30 // 30 seconds tolerance
       });
 
