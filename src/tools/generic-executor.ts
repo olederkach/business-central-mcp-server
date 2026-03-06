@@ -9,6 +9,7 @@ import { CompanyManager } from '../api/company-manager.js';
 import { ApiContextManager } from '../api/api-context-manager.js';
 import { logger } from '../utils/logger.js';
 import { ODataValidator } from '../utils/odata-validator.js';
+import { validateEntityName } from '../utils/input-validator.js';
 import axios from 'axios';
 
 export interface GenericToolExecution {
@@ -456,6 +457,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
 
     const resource = args.resource;
     const companyId = args.company_id || await this.companyManager.getActiveCompanyId();
@@ -511,6 +513,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
 
     const resource = args.resource;
     const companyId = args.company_id || await this.companyManager.getActiveCompanyId();
@@ -588,6 +591,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
     if (!args.data) {
       throw new Error('Missing required parameter: data');
     }
@@ -667,6 +671,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
     if (!args.record_id) {
       throw new Error('Missing required parameter: record_id');
     }
@@ -755,6 +760,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
     if (!args.record_id) {
       throw new Error('Missing required parameter: record_id');
     }
@@ -815,6 +821,7 @@ export class GenericToolExecutor {
     if (!args.resource) {
       throw new Error('Missing required parameter: resource');
     }
+    validateEntityName(args.resource);
     if (!args.field) {
       throw new Error('Missing required parameter: field');
     }
