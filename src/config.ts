@@ -12,7 +12,6 @@ export interface ServerConfig {
   metadataMode: MetadataMode;
   authMode: 'api-key' | 'oauth';
   keyVaultName?: string;
-  corsOrigins: string[];
 }
 
 export function loadConfig(): ServerConfig {
@@ -30,7 +29,6 @@ export function loadConfig(): ServerConfig {
   }
 
   const keyVaultName = process.env.KEY_VAULT_NAME;
-  const corsOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
 
   if (authMode === 'oauth') {
     const required = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'];
@@ -50,8 +48,7 @@ export function loadConfig(): ServerConfig {
     port,
     metadataMode,
     authMode,
-    keyVaultName,
-    corsOrigins
+    keyVaultName
   };
 }
 
