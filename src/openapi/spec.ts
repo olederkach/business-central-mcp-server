@@ -18,8 +18,8 @@ export const openApiSpec = {
   },
   servers: [
     {
-      url: 'https://mcp-bc-f940e489.salmonhill-7df6cca4.eastus.azurecontainerapps.io',
-      description: 'Production server'
+      url: process.env.SERVER_URL || 'http://localhost:3005',
+      description: 'API server'
     }
   ],
   security: [

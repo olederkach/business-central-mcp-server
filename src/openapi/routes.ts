@@ -32,9 +32,10 @@ export function createOpenApiRoutes(): Router {
   });
 
   // Swagger UI redirect
-  router.get('/docs', (_req: Request, res: Response) => {
+  router.get('/docs', (req: Request, res: Response) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.redirect('https://petstore.swagger.io/?url=' + encodeURIComponent(
-      'https://mcp-bc-f940e489.salmonhill-7df6cca4.eastus.azurecontainerapps.io/api/openapi.json'
+      `${baseUrl}/api/openapi.json`
     ));
   });
 

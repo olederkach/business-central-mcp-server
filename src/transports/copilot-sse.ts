@@ -439,8 +439,7 @@ export function createCopilotSseEndpoint(): Router {
                     mimeType: 'application/json',
                     text: JSON.stringify({
                       tenant: {
-                        id: bcConfig.tenantId,
-                        name: 'Oleksandr Derkach'
+                        id: bcConfig.tenantId
                       },
                       environment: {
                         name: bcConfig.environment,
@@ -451,8 +450,7 @@ export function createCopilotSseEndpoint(): Router {
                         baseUrl: `https://api.businesscentral.dynamics.com/${bcConfig.apiVersion}/${bcConfig.tenantId}/${bcConfig.environment}`
                       },
                       company: {
-                        id: companyId,
-                        name: 'Elevaite'
+                        id: companyId
                       }
                     }, null, 2)
                   }
