@@ -165,6 +165,10 @@ app.post(
   (req, res) => mcpHandler.handle(req, res)
 );
 
+// IMPORTANT: /mcp sub-path discovery routes MUST be registered before app.use('/mcp')
+// because Express matches app.use('/mcp') for ANY path starting with /mcp
+app.get('/mcp/.well-known/openid-configuration', healthCheckLimiter, createDiscoveryEndpoint());
+
 // MCP Endpoint - Universal endpoint for ALL MCP clients
 // Supports both POST (JSON-RPC) and GET (SSE streaming) per MCP Streamable HTTP spec
 //
@@ -186,11 +190,41 @@ app.use('/api', mcpRateLimiter, authMiddleware, createDynamicOpenApiRoutes());
 
 // OAuth 2.0 Dynamic Client Registration (DCR) endpoints
 // Enables "Dynamic discovery" mode in Microsoft Copilot Studio
-// OpenID Connect Discovery endpoint (public, no auth required)
-app.get('/.well-known/openid-configuration', healthCheckLimiter, createDiscoveryEndpoint());
+// Discovery endpoints (public, no auth required)
+// MCS probes multiple paths per RFC 8414, RFC 9728, and OpenID Connect Discovery
+const discoveryHandler = createDiscoveryEndpoint();
+app.get('/.well-known/openid-configuration', healthCheckLimiter, discoveryHandler);
+app.get('/.well-known/oauth-authorization-server', healthCheckLimiter, discoveryHandler);
+app.get('/.well-known/oauth-authorization-server/mcp', healthCheckLimiter, discoveryHandler);
+app.get('/.well-known/openid-configuration/mcp', healthCheckLimiter, discoveryHandler);
+
+// RFC 9728 Protected Resource Metadata — tells MCS where to get tokens for this resource
+app.get('/.well-known/oauth-protected-resource', healthCheckLimiter, (_req, res) => {
+  const azureClientId = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID || '';
+  const baseUrl = process.env.MCP_SERVER_URL || `http://localhost:${process.env.PORT || 3005}`;
+  res.json({
+    resource: `${baseUrl}/mcp`,
+    authorization_servers: [baseUrl],
+    scopes_supported: [`api://${azureClientId}/.default`, 'openid'],
+    bearer_methods_supported: ['header']
+  });
+});
+app.get('/.well-known/oauth-protected-resource/mcp', healthCheckLimiter, (_req, res) => {
+  const azureClientId = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID || '';
+  const baseUrl = process.env.MCP_SERVER_URL || `http://localhost:${process.env.PORT || 3005}`;
+  res.json({
+    resource: `${baseUrl}/mcp`,
+    authorization_servers: [baseUrl],
+    scopes_supported: [`api://${azureClientId}/.default`, 'openid'],
+    bearer_methods_supported: ['header']
+  });
+});
 
 // Dynamic Client Registration endpoint (requires auth + rate limited)
-app.post('/oauth/register', authLimiter, authMiddleware, createRegistrationEndpoint());
+// DCR endpoint is public (rate-limited only) — MCS calls this before it has a token.
+// SECURITY: This is safe because registerClient() returns the existing Azure AD client_id,
+// not a new secret. The actual client_secret is never exposed through this endpoint.
+app.post('/oauth/register', authLimiter, createRegistrationEndpoint());
 
 // Client management endpoints (admin only)
 const clientManagement = createClientManagementEndpoints();
@@ -211,7 +245,8 @@ if (config.authMode === 'oauth') {
   const azureAdBase = `https://login.microsoftonline.com/${azureTenantId}/oauth2/v2.0`;
 
   // /authorize — redirect to Azure AD authorize endpoint
-  app.get('/authorize', (req, res) => {
+  // SECURITY: Rate-limited to prevent redirect floods to Azure AD
+  app.get('/authorize', authLimiter, (req, res) => {
     const params = new URLSearchParams(req.query as Record<string, string>);
     // Replace generic scope with Azure AD scope
     if (params.get('scope') && !params.get('scope')?.startsWith('api://')) {
@@ -221,7 +256,8 @@ if (config.authMode === 'oauth') {
   });
 
   // /token — proxy to Azure AD token endpoint
-  app.post('/token', express.urlencoded({ extended: true }), async (req, res) => {
+  // SECURITY: Rate-limited to prevent brute-force token exchange attempts
+  app.post('/token', authLimiter, express.urlencoded({ extended: true }), async (req, res) => {
     try {
       const body = new URLSearchParams(req.body as Record<string, string>);
       // Inject client secret if not provided (MCP clients may not have it)

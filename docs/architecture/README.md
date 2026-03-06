@@ -310,7 +310,7 @@ Layer 5: Data Security
 
 ## Performance Characteristics
 
-### Benchmarks (v2.2.7)
+### Benchmarks (v1.1.0)
 
 | Metric | Value | Target |
 |--------|-------|--------|

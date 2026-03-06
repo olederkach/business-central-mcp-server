@@ -1,20 +1,6 @@
 # Deployment Guide - Azure Container Apps
 
-**Complete guide for deploying Business Central MCP Server to Azure**
-
-> This solution is designed as a **cloud-native service**. This guide covers deployment to Azure Container Apps, the recommended production environment.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [Azure Resources](#azure-resources)
-4. [Deployment Steps](#deployment-steps)
-5. [Configuration](#configuration)
-6. [Verification](#verification)
-7. [Troubleshooting](#troubleshooting)
+Complete guide for deploying Business Central MCP Server to Azure Container Apps.
 
 ---
 
@@ -22,45 +8,38 @@
 
 ### What Gets Deployed
 
-```
+```text
 Azure Subscription
-├── Resource Group (mcp-bc-server-rg)
-│   ├── Container Registry (ACR)
-│   │   └── Docker Image (business-central-mcp-server)
-│   ├── Container Apps Environment
-│   │   └── Container App (mcp-bc-server)
-│   │       ├── Ingress: HTTPS (public)
-│   │       ├── Scaling: 1-10 replicas
-│   │       └── Health checks: /health
-│   ├── Key Vault (secrets storage)
-│   │   ├── MCP API keys
-│   │   ├── BC client secret
-│   │   └── Other secrets
-│   ├── Application Insights (monitoring)
-│   │   ├── Request telemetry
-│   │   ├── Performance metrics
-│   │   └── Error tracking
-│   └── Managed Identity
-│       └── Access to Key Vault & ACR
++-- Resource Group (<your-resource-group>)
+    +-- Container Registry (<your-acr-name>)
+    |   +-- Docker Image (business-central-mcp-server)
+    +-- Container Apps Environment
+    |   +-- Container App (<your-container-app-name>)
+    |       +-- Ingress: HTTPS (public)
+    |       +-- Scaling: 1-10 replicas
+    |       +-- Health checks: /health
+    +-- Key Vault (optional, secrets storage)
+    +-- Application Insights (optional, monitoring)
+    +-- Managed Identity (optional, for Key Vault / ACR access)
 ```
 
 ### Deployment Time
 
 - **Initial deployment:** 15-20 minutes
-- **Subsequent deployments:** 5-10 minutes (updates only)
+- **Subsequent deployments:** 5-10 minutes (image update only)
 
 ### Monthly Cost Estimate
 
-| Resource | Cost |
-|----------|------|
-| Container Apps (1-3 replicas avg) | $30-40 |
-| Container Registry (Basic tier) | $5 |
-| Key Vault (Standard tier) | $1-2 |
-| Application Insights | $5-10 |
-| Bandwidth (moderate usage) | $5-10 |
-| **Total** | **$55-75/month** |
+| Resource                          | Estimated Cost |
+| --------------------------------- | -------------- |
+| Container Apps (1-3 replicas avg) | $30-40         |
+| Container Registry (Basic tier)   | $5             |
+| Key Vault (Standard tier)         | $1-2           |
+| Application Insights              | $5-10          |
+| Bandwidth (moderate usage)        | $5-10          |
+| **Total**                         | **$55-75/month** |
 
-*Based on 100K requests/month*
+Based on approximately 100K requests/month.
 
 ---
 
@@ -69,22 +48,29 @@ Azure Subscription
 ### Required Tools
 
 1. **Azure CLI** (version 2.50+)
+
    ```bash
-   # Install Azure CLI
-   # Windows: winget install Microsoft.AzureCLI
-   # Mac: brew install azure-cli
-   # Linux: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-   
-   # Verify installation
+   # Windows
+   winget install Microsoft.AzureCLI
+
+   # macOS
+   brew install azure-cli
+
+   # Linux
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+   # Verify
    az --version
    ```
 
-2. **Docker** (for local testing - optional)
+2. **Docker** (optional, for local builds)
+
    ```bash
    docker --version
    ```
 
-3. **Git** (for cloning repository)
+3. **Git**
+
    ```bash
    git --version
    ```
@@ -92,305 +78,364 @@ Azure Subscription
 ### Azure Permissions
 
 You need an Azure subscription with:
-- **Contributor** role (or higher) on the subscription
-- Ability to create resource groups and resources
-- Ability to create Azure AD app registrations
 
-### Business Central Setup
-
-1. **Azure AD App Registration** for BC API access
-   - Go to: Azure Portal → Azure Active Directory → App Registrations
-   - Click: **New registration**
-   - Name: `BC-MCP-Server-API-Access`
-   - Supported account types: **Accounts in this organizational directory only**
-   - Click: **Register**
-
-2. **Add API Permissions**
-   - Go to: API permissions → Add a permission
-   - Select: **Dynamics 365 Business Central**
-   - Permission type: **Application permissions**
-   - Select: **Automation.ReadWrite.All** or **Financials.ReadWrite.All**
-   - Click: **Grant admin consent**
-
-3. **Create Client Secret**
-   - Go to: Certificates & secrets → New client secret
-   - Description: `MCP Server Access`
-   - Expires: **24 months** (recommended)
-   - Click: **Add**
-   - **Copy the secret value** (you'll need this later)
-
-4. **Get Your Business Central Information**
-   ```
-   Tenant ID: Azure AD tenant ID (GUID)
-   Client ID: App registration application ID (GUID)
-   Client Secret: Secret value from step 3
-   Environment: "Sandbox" or "Production"
-   Company ID: BC company ID (GUID) or name
-   ```
+- **Contributor** role (or higher) on the subscription or target resource group
+- Ability to create Azure AD / Entra ID app registrations
+- Ability to grant admin consent for API permissions
 
 ---
 
-## Azure Resources
+## Step 1: Azure AD App Registration (Unified)
 
-### 1. Create Resource Group
+A single app registration can serve both purposes:
+
+1. **User OAuth** (Authorization Code flow) -- Claude.ai and Copilot Studio users authenticate to the MCP server.
+2. **BC API Access** (Client Credentials flow) -- the MCP server authenticates to Business Central.
+
+This unified approach means you maintain one app, one secret, and one set of IDs.
+
+### Create the App Registration
+
+1. Go to **Azure Portal** > **App registrations** > **New registration**.
+2. Name: for example, `BC-MCP-Server`.
+3. Supported account types: **Accounts in this organizational directory only** (single tenant).
+4. Leave Redirect URI blank for now.
+5. Click **Register**.
+
+### Add BC API Permission
+
+1. Go to **API permissions** > **Add a permission**.
+2. Select **Dynamics 365 Business Central**.
+3. Choose **Application permissions**.
+4. Select **API.ReadWrite.All**.
+5. Click **Add permissions**.
+6. Click **Grant admin consent for `<your-tenant>`**.
+
+### Expose an API Scope (for OAuth mode)
+
+This step is only required if you plan to use `AUTH_MODE=oauth` (Claude.ai, Copilot Studio).
+
+1. Go to **Expose an API**.
+2. Set **Application ID URI** to `api://<your-client-id>`.
+3. Click **Add a scope**:
+   - Scope name: `MCP.Access`
+   - Who can consent: **Admins only**
+   - Admin consent display name: `Access MCP Server`
+   - Admin consent description: `Allows access to the Business Central MCP Server`
+   - State: **Enabled**
+4. This scope is validated when users authenticate via OAuth. The server checks it via the `MCP_OAUTH_REQUIRED_SCOPE` environment variable.
+
+### Create Client Secret
+
+1. Go to **Certificates & secrets** > **New client secret**.
+2. Description: `MCP Server`
+3. Expires: 24 months (recommended).
+4. Click **Add**.
+5. **Copy the secret value immediately** -- it is shown only once.
+
+With the unified approach, this single secret is used for both the MCP OAuth flow (`AZURE_CLIENT_SECRET`) and the BC API calls (`BC_CLIENT_SECRET`).
+
+### Register Redirect URIs
+
+Under **Authentication** > **Web** > **Redirect URIs**, add the URIs relevant to your MCP clients:
+
+| Redirect URI                                                                 | Used by                                                        |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `https://claude.ai/api/mcp/auth_callback`                                   | Claude.ai                                                      |
+| `https://global.consent.azure-apim.net/redirect/<your-connector-slug>`       | Copilot Studio (exact URI shown in error message if missing)   |
+| `https://token.botframework.com/.auth/web/redirect`                          | Copilot Studio (Bot Framework)                                 |
+| `https://businesscentral.dynamics.com/OAuthLanding.htm`                      | Business Central                                               |
+
+You only need to add URIs for clients you actually use.
+
+### Collect Values
+
+| Value                    | Where to Find              | Used As                                    |
+| ------------------------ | -------------------------- | ------------------------------------------ |
+| Application (client) ID | App registration > Overview | `AZURE_CLIENT_ID`, `BC_CLIENT_ID`         |
+| Directory (tenant) ID   | App registration > Overview | `AZURE_TENANT_ID`, `BC_TENANT_ID`         |
+| Client secret value      | Certificates & secrets     | `AZURE_CLIENT_SECRET`, `BC_CLIENT_SECRET` |
+
+With the unified registration, the AZURE and BC values are identical.
+
+---
+
+## Step 2: Create Azure Resources
+
+### Login
 
 ```bash
-# Login to Azure
 az login
+az account set --subscription "<your-subscription-name-or-id>"
+```
 
-# Set your subscription (if you have multiple)
-az account set --subscription "Your Subscription Name"
+### Resource Group
 
-# Create resource group
+```bash
 az group create \
-  --name mcp-bc-server-rg \
-  --location eastus
+  --name <your-resource-group> \
+  --location <your-region>
 ```
 
-### 2. Create Container Registry
+### Container Registry
 
 ```bash
-# Create ACR
 az acr create \
-  --resource-group mcp-bc-server-rg \
-  --name mcpbcserver \
+  --resource-group <your-resource-group> \
+  --name <your-acr-name> \
   --sku Basic \
-  --location eastus \
   --admin-enabled true
-
-# Get ACR credentials
-az acr credential show \
-  --name mcpbcserver \
-  --resource-group mcp-bc-server-rg
 ```
 
-### 3. Create Key Vault
+### Container Apps Environment
 
 ```bash
-# Create Key Vault
+az containerapp env create \
+  --name <your-environment-name> \
+  --resource-group <your-resource-group> \
+  --location <your-region>
+```
+
+### (Optional) Key Vault
+
+```bash
 az keyvault create \
-  --name mcp-bc-keyvault \
-  --resource-group mcp-bc-server-rg \
-  --location eastus \
+  --name <your-keyvault-name> \
+  --resource-group <your-resource-group> \
+  --location <your-region> \
   --sku standard
-
-# Enable for deployment
-az keyvault update \
-  --name mcp-bc-keyvault \
-  --resource-group mcp-bc-server-rg \
-  --enabled-for-deployment true \
-  --enabled-for-template-deployment true
 ```
 
-### 4. Create Application Insights
+### (Optional) Application Insights
 
 ```bash
-# Create App Insights
 az monitor app-insights component create \
-  --app mcp-bc-insights \
-  --location eastus \
-  --resource-group mcp-bc-server-rg \
+  --app <your-insights-name> \
+  --location <your-region> \
+  --resource-group <your-resource-group> \
   --application-type web
-
-# Get connection string
-az monitor app-insights component show \
-  --app mcp-bc-insights \
-  --resource-group mcp-bc-server-rg \
-  --query connectionString -o tsv
 ```
 
 ---
 
-## Deployment Steps
+## Step 3: Build and Push Docker Image
 
-### Step 1: Clone Repository
+Option A -- build remotely using ACR Tasks (no local Docker required):
 
 ```bash
-git clone https://github.com/olederkach/business-central-mcp-server.git
-cd business-central-mcp-server
+az acr build \
+  --registry <your-acr-name> \
+  --image business-central-mcp-server:latest \
+  .
 ```
 
-### Step 2: Build and Push Docker Image
+Option B -- build locally and push:
 
 ```bash
-# Login to ACR
-az acr login --name mcpbcserver
+az acr login --name <your-acr-name>
 
-# Build image
-docker build -t business-central-mcp-server:latest .
-
-# Tag image
-docker tag business-central-mcp-server:latest mcpbcserver.azurecr.io/business-central-mcp-server:latest
-
-# Push to ACR
-docker push mcpbcserver.azurecr.io/business-central-mcp-server:latest
+docker build -t <your-acr-name>.azurecr.io/business-central-mcp-server:latest .
+docker push <your-acr-name>.azurecr.io/business-central-mcp-server:latest
 ```
 
-### Step 3: Store Secrets in Key Vault
+---
+
+## Step 4: Deploy Container App
+
+### Store Secrets
+
+Container Apps has a built-in secrets store. Set your secrets before or during deployment:
 
 ```bash
-# Store BC client secret
-az keyvault secret set \
-  --vault-name mcp-bc-keyvault \
-  --name bc-client-secret \
-  --value "YOUR_BC_CLIENT_SECRET"
-
-# Store MCP API keys (comma-separated)
-az keyvault secret set \
-  --vault-name mcp-bc-keyvault \
-  --name mcp-api-keys \
-  --value "key1,key2,key3"
-
-# Generate random API key (optional)
-# openssl rand -base64 32
+az containerapp secret set \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
+  --secrets \
+    bc-client-id="<your-client-id>" \
+    bc-client-secret="<your-client-secret>" \
+    mcp-api-keys="<your-api-key-1>,<your-api-key-2>"
 ```
 
-### Step 4: Create Container Apps Environment
+To generate a random API key:
 
 ```bash
-# Create environment
-az containerapp env create \
-  --name mcp-bc-env \
-  --resource-group mcp-bc-server-rg \
-  --location eastus
+openssl rand -base64 32
 ```
 
-### Step 5: Deploy Container App
+### Create the Container App
+
+The `--env-vars` and `--secrets` flags differ depending on your authentication mode.
+
+#### API Key Mode
 
 ```bash
-# Create managed identity
-az identity create \
-  --name mcp-bc-identity \
-  --resource-group mcp-bc-server-rg
-
-# Get identity ID
-IDENTITY_ID=$(az identity show \
-  --name mcp-bc-identity \
-  --resource-group mcp-bc-server-rg \
-  --query id -o tsv)
-
-# Grant Key Vault access to managed identity
-az keyvault set-policy \
-  --name mcp-bc-keyvault \
-  --object-id $(az identity show --name mcp-bc-identity --resource-group mcp-bc-server-rg --query principalId -o tsv) \
-  --secret-permissions get list
-
-# Create container app
 az containerapp create \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
-  --environment mcp-bc-env \
-  --image mcpbcserver.azurecr.io/business-central-mcp-server:latest \
-  --registry-server mcpbcserver.azurecr.io \
-  --registry-username $(az acr credential show --name mcpbcserver -g mcp-bc-server-rg --query username -o tsv) \
-  --registry-password $(az acr credential show --name mcpbcserver -g mcp-bc-server-rg --query passwords[0].value -o tsv) \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
+  --environment <your-environment-name> \
+  --image <your-acr-name>.azurecr.io/business-central-mcp-server:latest \
+  --registry-server <your-acr-name>.azurecr.io \
   --target-port 3005 \
   --ingress external \
   --min-replicas 1 \
   --max-replicas 10 \
   --cpu 0.5 \
   --memory 1Gi \
-  --env-vars \
-    "NODE_ENV=production" \
-    "PORT=3005" \
-    "TOOL_MODE=generic" \
-    "AUTH_MODE=api-key" \
-    "BC_TENANT_ID=YOUR_TENANT_ID" \
-    "BC_ENVIRONMENT_NAME=Sandbox" \
-    "BC_COMPANY_ID=YOUR_COMPANY_ID" \
-    "BC_CLIENT_ID=YOUR_CLIENT_ID" \
   --secrets \
-    "bc-client-secret=$(az keyvault secret show --vault-name mcp-bc-keyvault --name bc-client-secret --query value -o tsv)" \
-    "mcp-api-keys=$(az keyvault secret show --vault-name mcp-bc-keyvault --name mcp-api-keys --query value -o tsv)" \
-  --secret-refs \
-    "BC_CLIENT_SECRET=bc-client-secret" \
-    "MCP_API_KEYS=mcp-api-keys"
+    bc-client-id="<your-client-id>" \
+    bc-client-secret="<your-client-secret>" \
+    mcp-api-keys="<your-api-key-1>,<your-api-key-2>" \
+  --env-vars \
+    NODE_ENV=production \
+    PORT=3005 \
+    AUTH_MODE=api-key \
+    LOG_LEVEL=info \
+    METADATA_MODE=all \
+    CACHE_TTL_SECONDS=3600 \
+    BC_TENANT_ID=<your-tenant-id> \
+    BC_ENVIRONMENT_NAME=<Sandbox-or-Production> \
+    BC_COMPANY_ID=<your-company-id> \
+    BC_CLIENT_ID=secretref:bc-client-id \
+    BC_CLIENT_SECRET=secretref:bc-client-secret \
+    MCP_API_KEYS=secretref:mcp-api-keys
 ```
 
-### Step 6: Get Deployment URL
+#### OAuth Mode (for Claude.ai and Copilot Studio)
 
 ```bash
-# Get FQDN
+az containerapp create \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
+  --environment <your-environment-name> \
+  --image <your-acr-name>.azurecr.io/business-central-mcp-server:latest \
+  --registry-server <your-acr-name>.azurecr.io \
+  --target-port 3005 \
+  --ingress external \
+  --min-replicas 1 \
+  --max-replicas 10 \
+  --cpu 0.5 \
+  --memory 1Gi \
+  --secrets \
+    bc-client-id="<your-client-id>" \
+    bc-client-secret="<your-client-secret>" \
+    azure-client-secret="<your-client-secret>" \
+  --env-vars \
+    NODE_ENV=production \
+    PORT=3005 \
+    AUTH_MODE=oauth \
+    LOG_LEVEL=info \
+    METADATA_MODE=all \
+    CACHE_TTL_SECONDS=3600 \
+    AZURE_TENANT_ID=<your-tenant-id> \
+    AZURE_CLIENT_ID=<your-client-id> \
+    AZURE_CLIENT_SECRET=secretref:azure-client-secret \
+    MCP_SERVER_URL=https://<your-container-app-name>.<your-region>.azurecontainerapps.io \
+    MCP_OAUTH_REQUIRED_SCOPE=MCP.Access \
+    BC_TENANT_ID=<your-tenant-id> \
+    BC_ENVIRONMENT_NAME=<Sandbox-or-Production> \
+    BC_COMPANY_ID=<your-company-id> \
+    BC_CLIENT_ID=secretref:bc-client-id \
+    BC_CLIENT_SECRET=secretref:bc-client-secret
+```
+
+With the unified app registration, the AZURE and BC credentials are the same values.
+
+Set `MCP_OAUTH_REQUIRED_SCOPE` to an empty string to disable scope validation.
+
+### Get the Deployment URL
+
+```bash
 az containerapp show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --query properties.configuration.ingress.fqdn -o tsv
-
-# Output example: your-app-name.region.azurecontainerapps.io
 ```
 
 ---
 
-## Configuration
+## Step 5: GitHub Actions Deployment (CI/CD)
 
-### Environment Variables Reference
+The repository includes a fully parameterized GitHub Actions workflow at `.github/workflows/deploy-azure.yml`. It uses OIDC (federated credentials) to authenticate with Azure -- no long-lived secrets for Azure login.
 
-Set these in the Container App configuration:
+### Configure GitHub Secrets
 
-| Variable | Required | Example | Description |
-|----------|----------|---------|-------------|
-| `NODE_ENV` | ✅ | `production` | Environment mode |
-| `PORT` | ✅ | `3005` | Server port |
-| `TOOL_MODE` | ✅ | `generic` | Tool mode (generic recommended) |
-| `AUTH_MODE` | ✅ | `api-key` | Authentication mode |
-| `BC_TENANT_ID` | ✅ | `12345678-1234-...` | BC tenant ID |
-| `BC_ENVIRONMENT_NAME` | ✅ | `Sandbox` | BC environment |
-| `BC_COMPANY_ID` | ✅ | `company-guid` | Default company |
-| `BC_CLIENT_ID` | ✅ | `app-guid` | Azure AD app ID |
-| `BC_CLIENT_SECRET` | ✅ | *secret* | From Key Vault |
-| `MCP_API_KEYS` | ✅ | *keys* | From Key Vault |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | ❌ | *connection-string* | App Insights |
-| `LOG_LEVEL` | ❌ | `info` | Logging level |
+Go to your repository **Settings** > **Secrets and variables** > **Actions** and create:
 
-### Update Configuration
+| Secret                    | Description                                      |
+| ------------------------- | ------------------------------------------------ |
+| `AZURE_CLIENT_ID`        | App registration ID used for OIDC deployment login |
+| `AZURE_TENANT_ID`        | Azure AD / Entra ID tenant ID                    |
+| `AZURE_SUBSCRIPTION_ID`  | Azure subscription ID                            |
+| `BC_CLIENT_ID`           | App registration ID for BC API access            |
+| `BC_CLIENT_SECRET`       | App registration client secret                   |
+| `MCP_API_KEYS`           | Comma-separated API keys (for api-key mode)      |
 
-```bash
-# Update environment variables
-az containerapp update \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
-  --set-env-vars "BC_ENVIRONMENT_NAME=Production"
+With the unified registration, `AZURE_CLIENT_ID` and `BC_CLIENT_ID` hold the same value.
 
-# Update secrets
-az containerapp secret set \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
-  --secrets "mcp-api-keys=new-key-1,new-key-2"
-```
+### Workflow Inputs
+
+The workflow is triggered manually (`workflow_dispatch`) and accepts these inputs:
+
+| Input                  | Description                                       | Default        |
+| ---------------------- | ------------------------------------------------- | -------------- |
+| `environment`          | GitHub environment for secret scoping             | `production`   |
+| `image_tag`            | Docker image tag (defaults to git SHA)            | _(git SHA)_    |
+| `acr_name`             | Azure Container Registry name                     | _(required)_   |
+| `container_app_name`   | Azure Container App name                          | _(required)_   |
+| `resource_group`       | Azure Resource Group name                         | _(required)_   |
+| `bc_tenant_id`         | BC / Entra ID tenant ID (GUID)                    | _(required)_   |
+| `bc_company_id`        | BC company ID (GUID)                              | _(required)_   |
+| `bc_environment_name`  | BC environment name                               | `Production`   |
+| `auth_mode`            | Authentication mode (`api-key` or `oauth`)        | `api-key`      |
+| `log_level`            | Log level (`debug`, `info`, `warn`, `error`)      | `info`         |
+| `metadata_mode`        | BC metadata discovery (`all` or `extensions-only`) | `all`         |
+| `cache_ttl_seconds`    | Cache TTL in seconds                              | `3600`         |
+
+### What the Workflow Does
+
+1. Validates that all required GitHub Secrets are configured.
+2. Logs in to Azure via OIDC (no stored Azure credentials).
+3. Builds the Docker image and pushes it to your ACR.
+4. Syncs secrets into the Container App's secret store.
+5. Deploys the new image with all environment variables.
+6. Runs a health check against the deployed app.
+
+### Running the Workflow
+
+Go to **Actions** > **Deploy to Azure Container Apps** > **Run workflow**, fill in the inputs, and click **Run workflow**.
 
 ---
 
-## Verification
+## Step 6: Verification
 
-### 1. Health Check
+### Health Check
 
 ```bash
-# Get your server URL
 FQDN=$(az containerapp show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --query properties.configuration.ingress.fqdn -o tsv)
 
-# Test health endpoint
 curl "https://$FQDN/health"
 ```
 
-**Expected response:**
+Expected response:
+
 ```json
 {
   "status": "healthy",
-  "version": "2.2.7",
-  "timestamp": "2025-10-28T12:00:00.000Z"
+  "version": "<current-version>",
+  "timestamp": "2026-01-01T00:00:00.000Z"
 }
 ```
 
-### 2. MCP Protocol Test
+### MCP Protocol Test
 
 ```bash
-# Test tools/list
+# API key mode
 curl -X POST "https://$FQDN/mcp" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
+  -H "X-API-Key: <your-api-key>" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/list",
@@ -398,115 +443,166 @@ curl -X POST "https://$FQDN/mcp" \
   }'
 ```
 
-**Expected:** JSON with 14 tools
+Expected: a JSON response listing 14 tools.
 
-### 3. View Logs
+### View Logs
 
 ```bash
-# Stream logs
 az containerapp logs show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --follow
-
-# Or view in Azure Portal
-# Container Apps → mcp-bc-server → Monitoring → Log stream
 ```
 
-### 4. Check Metrics
+Or in the Azure Portal: **Container Apps** > your app > **Monitoring** > **Log stream**.
 
-```bash
-# Get replica count
-az containerapp replica list \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg
+---
 
-# View in Application Insights
-# Portal → mcp-bc-insights → Live Metrics
-```
+## Environment Variables Reference
+
+### Server Configuration
+
+| Variable             | Required | Default       | Description                                                     |
+| -------------------- | -------- | ------------- | --------------------------------------------------------------- |
+| `NODE_ENV`           | No       | `development` | Set to `production` for deployed environments                   |
+| `PORT`               | No       | `3005`        | HTTP server port                                                |
+| `AUTH_MODE`          | No       | `api-key`     | Authentication mode: `api-key` or `oauth`                       |
+| `LOG_LEVEL`          | No       | `info`        | Logging level: `debug`, `info`, `warn`, `error`                 |
+| `METADATA_MODE`      | No       | `all`         | BC metadata discovery: `all` or `extensions-only`               |
+| `CACHE_TTL_SECONDS`  | No       | `3600`        | Metadata cache TTL in seconds                                   |
+| `CORS_ORIGINS`       | No       | _(none)_      | Comma-separated allowed origins (do not use `*`)                |
+| `MCP_SERVER_URL`     | OAuth    | _(derived)_   | Public base URL of the server (required for OAuth redirect)     |
+
+### Authentication -- API Key Mode
+
+| Variable         | Required | Default  | Description                                             |
+| ---------------- | -------- | -------- | ------------------------------------------------------- |
+| `MCP_API_KEYS`   | Yes      | _(none)_ | Comma-separated API keys                                |
+| `KEY_VAULT_NAME` | No       | _(none)_ | Azure Key Vault name (alternative to `MCP_API_KEYS`)   |
+
+### Authentication -- OAuth Mode
+
+| Variable                    | Required | Default      | Description                                                              |
+| --------------------------- | -------- | ------------ | ------------------------------------------------------------------------ |
+| `AZURE_TENANT_ID`           | Yes      | _(none)_     | Entra ID tenant ID                                                       |
+| `AZURE_CLIENT_ID`           | Yes      | _(none)_     | App registration client ID                                               |
+| `AZURE_CLIENT_SECRET`       | Yes      | _(none)_     | App registration client secret                                           |
+| `MCP_OAUTH_REQUIRED_SCOPE`  | No       | `MCP.Access` | Required scope in the access token (set to empty string to disable)      |
+
+### Business Central Connection
+
+| Variable               | Required | Default      | Description                                                           |
+| ---------------------- | -------- | ------------ | --------------------------------------------------------------------- |
+| `BC_TENANT_ID`         | Yes      | _(none)_     | BC / Entra ID tenant ID                                               |
+| `BC_CLIENT_ID`         | Yes      | _(none)_     | App registration client ID for BC API access                          |
+| `BC_CLIENT_SECRET`     | Yes      | _(none)_     | App registration client secret                                        |
+| `BC_ENVIRONMENT_NAME`  | No       | `Production` | BC environment: `Production` or `Sandbox`                             |
+| `BC_COMPANY_ID`        | No       | _(none)_     | Default BC company ID (GUID); can be set at runtime via tools         |
+| `API_TYPE`             | No       | `standard`   | BC API type: `standard` or `custom`                                   |
+| `API_VERSION`          | No       | `v2.0`       | BC API version                                                        |
+| `API_PUBLISHER`        | No       | _(none)_     | Required when `API_TYPE=custom`                                       |
+| `API_GROUP`            | No       | _(none)_     | Required when `API_TYPE=custom`                                       |
+
+### Monitoring (Optional)
+
+| Variable                                 | Required | Default  | Description                                |
+| ---------------------------------------- | -------- | -------- | ------------------------------------------ |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING`  | No       | _(none)_ | Azure Application Insights connection string |
 
 ---
 
 ## Troubleshooting
 
-### Container Won't Start
+### Container Fails to Start
 
-**Check deployment logs:**
+Check the deployment logs:
+
 ```bash
 az containerapp logs show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --tail 100
 ```
 
-**Common issues:**
-- Missing environment variables
-- Invalid BC credentials
-- Key Vault permissions not set
+Common causes:
 
-### "Authentication failed" in logs
+- Missing required environment variables (`BC_TENANT_ID`, `BC_CLIENT_ID`, etc.)
+- Invalid `AUTH_MODE` value
+- OAuth mode enabled but `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, or `AZURE_CLIENT_SECRET` not set
 
-**Verify secrets:**
+### "Authentication failed" Errors
+
+Verify that secrets are correctly stored:
+
 ```bash
-# List secrets
 az containerapp secret list \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg
-
-# Update if needed
-az containerapp secret set \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
-  --secrets "bc-client-secret=NEW_VALUE"
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group>
 ```
 
-### High Memory/CPU Usage
+Common causes:
 
-**Check resource limits:**
+- Client secret has expired in Entra ID
+- Admin consent not granted for BC API permissions
+- Wrong tenant ID
+
+Update a secret:
+
+```bash
+az containerapp secret set \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
+  --secrets "bc-client-secret=<your-new-secret-value>"
+```
+
+### OAuth Redirect Errors
+
+If Claude.ai or Copilot Studio returns a redirect URI mismatch error:
+
+- Check that the exact redirect URI is registered in the app registration under **Authentication** > **Redirect URIs**.
+- The error message typically includes the expected URI -- add it to the app registration.
+
+### CORS Errors
+
+If browser-based clients receive CORS errors:
+
+- Set `CORS_ORIGINS` to a comma-separated list of allowed origins.
+- Do not use `*` -- it is blocked when credentials are enabled.
+
+### High Memory or CPU Usage
+
+Check current resource limits:
+
 ```bash
 az containerapp show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --query properties.template.containers[0].resources
 ```
 
-**Increase if needed:**
+Increase if needed:
+
 ```bash
 az containerapp update \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --cpu 1.0 \
   --memory 2Gi
 ```
 
-### Slow Response Times
-
-**Enable Application Insights:**
-```bash
-# Get connection string
-CONN_STRING=$(az monitor app-insights component show \
-  --app mcp-bc-insights \
-  --resource-group mcp-bc-server-rg \
-  --query connectionString -o tsv)
-
-# Add to container app
-az containerapp update \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
-  --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$CONN_STRING"
-```
-
 ### Cannot Connect from MCP Client
 
-**Check ingress settings:**
+Verify ingress configuration:
+
 ```bash
 az containerapp show \
-  --name mcp-bc-server \
-  --resource-group mcp-bc-server-rg \
+  --name <your-container-app-name> \
+  --resource-group <your-resource-group> \
   --query properties.configuration.ingress
 ```
 
-**Verify:**
+Check that:
+
 - Ingress is set to `external`
 - Target port is `3005`
 - HTTPS is enabled
@@ -515,37 +611,6 @@ az containerapp show \
 
 ## Next Steps
 
-1. **Configure MCP Clients**
-   - [Copilot Studio Setup](COPILOT_STUDIO_COMPLETE_SETUP.md)
-   - [Azure AI Foundry Setup](azure-ai-foundry/QUICK_SETUP.md)
-   - [Generic MCP Client Setup](MCP_CLIENT_SETUP.md)
-
-2. **Enable Monitoring**
-   - Set up Application Insights dashboards
-   - Configure alerts for errors/performance
-   - Review Application Insights metrics
-
-3. **Secure Your Deployment**
-   - Rotate secrets quarterly
-   - Review Key Vault access policies
-   - Enable Azure Defender (optional)
-
-4. **Optimize Performance**
-   - Enable caching (default: enabled)
-   - Adjust scaling rules if needed
-   - Monitor with Application Insights
-
----
-
-## Support
-
-- **Documentation:** [docs/README.md](README.md)
-- **Copilot Studio Issues:** [TROUBLESHOOTING_COPILOT_STUDIO.md](TROUBLESHOOTING_COPILOT_STUDIO.md)
-- **Issues:** [GitHub Issues](https://github.com/olederkach/business-central-mcp-server/issues)
-
----
-
-**Deployment complete! 🎉**
-
-Your Business Central MCP Server is now running in the cloud and ready to connect to AI agents.
-
+- **Configure MCP Clients:** See [MCP_CLIENT_SETUP.md](MCP_CLIENT_SETUP.md) for connecting Claude.ai, Copilot Studio, Azure AI Foundry, and other clients.
+- **Enable Monitoring:** Set up Application Insights dashboards and alerts.
+- **Rotate Secrets:** Rotate the client secret in Entra ID periodically and update the Container App secrets accordingly.

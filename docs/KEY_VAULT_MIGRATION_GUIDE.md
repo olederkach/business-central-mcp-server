@@ -5,26 +5,29 @@ This guide explains how to migrate from environment variable secrets to Azure Ke
 ## Current State (Less Secure)
 
 Currently, secrets are stored as Container App secrets and exposed as environment variables:
-- `BC_CLIENT_SECRET` - Business Central client secret
-- `AZURE_CLIENT_SECRET` - Azure AD client secret
-- `MCP_API_KEYS` - MCP API keys
+
+- `BC_CLIENT_SECRET` -- Business Central client secret
+- `AZURE_CLIENT_SECRET` -- Azure AD client secret
+- `MCP_API_KEYS` -- MCP API keys
 
 **Risk**: If the container is compromised, all secrets are exposed via environment variables.
 
 ## Target State (More Secure)
 
 After migration:
+
 - Container App uses **System-Assigned Managed Identity**
 - Secrets stored in **Azure Key Vault**
 - Application retrieves secrets at runtime using Managed Identity
 - No secrets in environment variables
 
 **Benefits**:
-- ✅ No plaintext secrets in configuration
-- ✅ Centralized secret management
-- ✅ Secret access auditing via Key Vault logs
-- ✅ Automatic secret rotation support
-- ✅ Per-identity access control
+
+- No plaintext secrets in configuration
+- Centralized secret management
+- Secret access auditing via Key Vault logs
+- Automatic secret rotation support
+- Per-identity access control
 
 ---
 
@@ -41,11 +44,11 @@ After migration:
 ## Step 1: Create Azure Key Vault (if not exists)
 
 ```bash
-# Variables
-RESOURCE_GROUP="mcp-bc-server-rg"
-LOCATION="eastus"
-KEY_VAULT_NAME="mcp-bc-kv-$(date +%s)"  # Must be globally unique
-CONTAINER_APP_NAME="mcp-bc-server"
+# Variables -- replace with your values
+RESOURCE_GROUP="<your-resource-group>"
+LOCATION="<your-region>"
+KEY_VAULT_NAME="<your-keyvault-name>"
+CONTAINER_APP_NAME="<your-container-app-name>"
 
 # Create Key Vault
 az keyvault create \
@@ -54,13 +57,6 @@ az keyvault create \
   --location "$LOCATION" \
   --enable-rbac-authorization true \
   --sku standard
-
-echo "✅ Key Vault created: $KEY_VAULT_NAME"
-```
-
-**Alternative**: If you already have a Key Vault, use it:
-```bash
-KEY_VAULT_NAME="your-existing-keyvault"
 ```
 
 ---
@@ -80,8 +76,6 @@ IDENTITY_PRINCIPAL_ID=$(az containerapp identity show \
   --resource-group "$RESOURCE_GROUP" \
   --query principalId \
   --output tsv)
-
-echo "✅ Managed Identity Principal ID: $IDENTITY_PRINCIPAL_ID"
 ```
 
 ---
@@ -101,11 +95,10 @@ az role assignment create \
   --role "Key Vault Secrets User" \
   --assignee "$IDENTITY_PRINCIPAL_ID" \
   --scope "$KEY_VAULT_ID"
-
-echo "✅ Granted Key Vault access to Managed Identity"
 ```
 
 **Note**: If using Key Vault with Access Policies (not RBAC), use this instead:
+
 ```bash
 az keyvault set-policy \
   --name "$KEY_VAULT_NAME" \
@@ -139,7 +132,6 @@ if [ ! -z "$BC_CLIENT_SECRET" ]; then
     --vault-name "$KEY_VAULT_NAME" \
     --name "bc-client-secret" \
     --value "$BC_CLIENT_SECRET"
-  echo "✅ Migrated bc-client-secret"
 fi
 
 if [ ! -z "$MCP_API_KEYS" ]; then
@@ -147,19 +139,18 @@ if [ ! -z "$MCP_API_KEYS" ]; then
     --vault-name "$KEY_VAULT_NAME" \
     --name "mcp-api-keys" \
     --value "$MCP_API_KEYS"
-  echo "✅ Migrated mcp-api-keys"
 fi
 
-# Also store Azure Client Secret (for BC API access)
-AZURE_CLIENT_SECRET="YOUR_AZURE_CLIENT_SECRET"  # Replace with actual value
+# Also store Azure Client Secret (for OAuth proxy / BC API access)
+AZURE_CLIENT_SECRET="<your-azure-client-secret>"
 az keyvault secret set \
   --vault-name "$KEY_VAULT_NAME" \
   --name "azure-client-secret" \
   --value "$AZURE_CLIENT_SECRET"
-echo "✅ Migrated azure-client-secret"
 ```
 
 **Security Note**: Clear these variables from shell history after running:
+
 ```bash
 history -c
 unset BC_CLIENT_SECRET MCP_API_KEYS AZURE_CLIENT_SECRET
@@ -188,11 +179,10 @@ az containerapp update \
     "AZURE_CLIENT_SECRET=secretref:${KEY_VAULT_URI}secrets/azure-client-secret" \
     "MCP_API_KEYS=secretref:${KEY_VAULT_URI}secrets/mcp-api-keys" \
     "KEY_VAULT_NAME=$KEY_VAULT_NAME"
-
-echo "✅ Container App configured to use Key Vault"
 ```
 
 **Alternative Method**: Use Container App secret references:
+
 ```bash
 # Create secrets with Key Vault references
 az containerapp secret set \
@@ -219,12 +209,9 @@ az containerapp update \
 ## Step 6: Restart Container App
 
 ```bash
-# Restart to apply changes
 az containerapp revision copy \
   --name "$CONTAINER_APP_NAME" \
   --resource-group "$RESOURCE_GROUP"
-
-echo "✅ Container App restarted with Key Vault integration"
 ```
 
 ---
@@ -233,7 +220,7 @@ echo "✅ Container App restarted with Key Vault integration"
 
 ```bash
 # Check health endpoint
-curl https://your-server.azurecontainerapps.io/health
+curl https://<your-server>.azurecontainerapps.io/health
 
 # Check logs for Key Vault access
 az containerapp logs show \
@@ -243,7 +230,7 @@ az containerapp logs show \
   | grep -i "vault\|secret\|identity"
 ```
 
-**Expected**: Health check returns 200 OK, no errors in logs
+Expected: Health check returns 200 OK, no errors in logs.
 
 ---
 
@@ -253,12 +240,12 @@ az containerapp logs show \
 # Enable Key Vault diagnostic logging
 WORKSPACE_ID=$(az monitor log-analytics workspace create \
   --resource-group "$RESOURCE_GROUP" \
-  --workspace-name "mcp-kv-logs" \
+  --workspace-name "<your-workspace-name>" \
   --query id \
   --output tsv 2>/dev/null || \
   az monitor log-analytics workspace show \
   --resource-group "$RESOURCE_GROUP" \
-  --workspace-name "mcp-kv-logs" \
+  --workspace-name "<your-workspace-name>" \
   --query id \
   --output tsv)
 
@@ -267,16 +254,15 @@ az monitor diagnostic-settings create \
   --resource "$KEY_VAULT_ID" \
   --workspace "$WORKSPACE_ID" \
   --logs '[{"category":"AuditEvent","enabled":true}]'
-
-echo "✅ Key Vault audit logging enabled"
 ```
 
 Query audit logs:
+
 ```kusto
 AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.KEYVAULT"
 | where OperationName == "SecretGet"
-| where identity_claim_appid_g == "<YOUR_CONTAINER_APP_IDENTITY>"
+| where identity_claim_appid_g == "<your-container-app-identity>"
 | project TimeGenerated, CallerIPAddress, ResultSignature, ResultDescription
 | order by TimeGenerated desc
 ```
@@ -330,8 +316,6 @@ az containerapp update \
 az containerapp revision copy \
   --name "$CONTAINER_APP_NAME" \
   --resource-group "$RESOURCE_GROUP"
-
-echo "✅ Rolled back to environment variable secrets"
 ```
 
 ---
@@ -345,14 +329,18 @@ With Key Vault, you can rotate secrets without redeploying:
 az keyvault secret set \
   --vault-name "$KEY_VAULT_NAME" \
   --name "bc-client-secret" \
-  --value "NEW_SECRET_VALUE"
+  --value "<new-secret-value>"
 
-# Application will pick up new value on next secret fetch (cached for 5 minutes)
-# Or restart to force immediate update
+# Application picks up the new value on next secret fetch (cached for 5 minutes)
+# Or restart to force immediate update:
 az containerapp revision restart \
   --name "$CONTAINER_APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --revision "mcp-bc-server--0000010"
+  --revision "$(az containerapp revision list \
+    --name "$CONTAINER_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query '[0].name' \
+    --output tsv)"
 ```
 
 ---
@@ -362,7 +350,6 @@ az containerapp revision restart \
 ### Key Vault Metrics
 
 ```bash
-# View secret retrieval metrics
 az monitor metrics list \
   --resource "$KEY_VAULT_ID" \
   --metric "ServiceApiResult" \
@@ -398,9 +385,9 @@ traces
 
 ### Issue: "Access denied" errors
 
-**Solution**:
+Verify Managed Identity has correct role assignment:
+
 ```bash
-# Verify Managed Identity has correct role assignment
 az role assignment list \
   --assignee "$IDENTITY_PRINCIPAL_ID" \
   --scope "$KEY_VAULT_ID"
@@ -408,9 +395,9 @@ az role assignment list \
 
 ### Issue: Application not starting after migration
 
-**Solution**:
+Check Container App logs:
+
 ```bash
-# Check Container App logs
 az containerapp logs show \
   --name "$CONTAINER_APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
@@ -425,45 +412,12 @@ az containerapp show \
 
 ### Issue: Secrets not updating after rotation
 
-**Solution**:
 - Wait 5 minutes for cache to expire
-- Or restart the container:
-  ```bash
-  az containerapp revision restart \
-    --name "$CONTAINER_APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --revision "$(az containerapp revision list \
-      --name "$CONTAINER_APP_NAME" \
-      --resource-group "$RESOURCE_GROUP" \
-      --query '[0].name' \
-      --output tsv)"
-  ```
+- Or restart the container (see Secret Rotation above)
 
 ---
 
-## Cost Considerations
+## Cost
 
-- Key Vault: ~$0.03/10,000 operations
-- Standard tier recommended
+- Key Vault Standard tier: ~$0.03/10,000 operations
 - Expected cost: < $1/month for typical usage
-
----
-
-## Compliance Benefits
-
-Using Key Vault with Managed Identity helps meet compliance requirements:
-
-- ✅ **SOC 2**: Centralized secret management, access auditing
-- ✅ **ISO 27001**: Encryption at rest, access control
-- ✅ **GDPR**: Secret lifecycle management, audit trails
-- ✅ **PCI DSS**: No plaintext secrets in configuration
-- ✅ **HIPAA**: Secure key storage, access logging
-
----
-
-**Estimated Time**: 30-45 minutes
-**Risk**: Low (easy rollback available)
-**Benefit**: High (significantly improves security posture)
-
-**Generated**: 2025-10-25
-**For**: Business Central MCP Server (mcp-bc-server)

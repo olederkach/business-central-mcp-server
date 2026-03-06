@@ -4,7 +4,7 @@ Model Context Protocol server for Microsoft Dynamics 365 Business Central.
 
 > Connect AI agents to Business Central data — from a single `npx` command for developers to a full Azure deployment for enterprise.
 
-[![Version](https://img.shields.io/badge/version-2.2.7-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
 [![MCP Protocol](https://img.shields.io/badge/MCP-2024--11--05-green)](https://modelcontextprotocol.io)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
@@ -17,7 +17,7 @@ Model Context Protocol server for Microsoft Dynamics 365 Business Central.
 | --- | --- | --- |
 | **Use case** | Local AI assistants, development, prototyping | Production cloud services, multi-tenant |
 | **Transport** | stdio (stdin/stdout) | HTTP/SSE |
-| **Clients** | Claude Desktop, Claude Code, Cline, Cursor | Copilot Studio, Azure AI Foundry, web apps |
+| **Clients** | Claude Desktop, Claude Code, Cline, Cursor | Claude.ai, Copilot Studio, Azure AI Foundry |
 | **Setup time** | 2 minutes | 15 minutes |
 | **Infrastructure** | None (runs locally) | Azure Container Apps |
 
@@ -107,59 +107,69 @@ business-central-mcp-server --stdio \
 
 ## Quick Start: Azure (Enterprise Mode)
 
-For production deployments serving cloud AI clients (Copilot Studio, Azure AI Foundry).
+For production deployments serving cloud AI clients (Claude.ai, Copilot Studio, Azure AI Foundry).
 
 ### Prerequisites
 
 - Azure subscription
 - Business Central tenant with API access
-- Azure AD app registration
+- Azure AD app registration (see [Deployment Guide](docs/DEPLOYMENT.md))
 
 ### Deploy
+
+Use the GitHub Actions workflow or deploy manually:
 
 ```bash
 git clone https://github.com/olederkach/business-central-mcp-server.git
 cd business-central-mcp-server
 
-# Configure
-export RESOURCE_GROUP=mcp-bc-server-rg
-export LOCATION=eastus
-export BC_TENANT_ID=your-tenant-id
-export BC_CLIENT_ID=your-client-id
-export BC_CLIENT_SECRET=your-client-secret
-
-# Deploy to Azure Container Apps
-chmod +x scripts/deployment/deploy-to-azure.sh
-./scripts/deployment/deploy-to-azure.sh
+# Deploy to Azure Container Apps (see docs/DEPLOYMENT.md for full walkthrough)
 ```
 
 What gets deployed:
 
 - Azure Container App (auto-scaling, 1-10 replicas)
 - Azure Container Registry
-- Azure Key Vault (secrets management)
-- Application Insights (telemetry)
-- Managed Identity
+- Application Insights (telemetry, optional)
 
-### Connect Copilot Studio
+### Authentication Modes
 
-```
-Settings > Knowledge > Add knowledge > Model Context Protocol
-  Name: Business Central MCP
-  URL: https://your-server.azurecontainerapps.io/mcp
-  Authentication: X-API-Key header
-  Value: your-api-key
-```
+| Mode | Server `AUTH_MODE` | Use Case |
+|------|--------------------|----------|
+| **OAuth** | `oauth` | Claude.ai, Copilot Studio (user-level auth) |
+| **API Key** | `api-key` | Azure AI Foundry, simple integrations |
 
-### Connect Azure AI Foundry
+### Connect Claude.ai (OAuth)
 
 ```
-Settings > Connections > + New connection > Model Context Protocol (MCP)
-  Endpoint: https://your-server.azurecontainerapps.io/mcp
-  Authentication: Bearer Token or API Key
+Claude.ai > Settings > MCP Servers > Add Custom
+  Name: Business Central
+  URL: https://<your-server>.azurecontainerapps.io/mcp
+  Client ID: <your-azure-client-id>
+  Client Secret: <your-azure-client-secret>
 ```
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the complete guide.
+### Connect Copilot Studio (OAuth Dynamic Discovery)
+
+```
+Copilot Studio > Knowledge > Add knowledge > MCP
+  Name: BC-MCP-Server
+  URL: https://<your-server>.azurecontainerapps.io/mcp
+  Auth: OAuth 2.0 > Dynamic discovery
+  Client ID: <your-azure-client-id>
+  Client Secret: <your-azure-client-secret>
+  Scope: api://<your-azure-client-id>/.default openid
+```
+
+### Connect Azure AI Foundry (API Key)
+
+```
+Settings > Connections > + New connection > MCP
+  Endpoint: https://<your-server>.azurecontainerapps.io/mcp
+  Authentication: API Key (X-API-Key header)
+```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the complete deployment guide and [docs/MCP_CLIENT_SETUP.md](docs/MCP_CLIENT_SETUP.md) for all client configurations.
 
 ---
 

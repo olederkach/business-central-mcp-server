@@ -223,16 +223,18 @@ export class OAuthAuth {
       const signingKey = key.getPublicKey();
 
       // Verify signature, issuer, audience, and expiration
+      // SECURITY: Fail closed — reject tokens if audience cannot be determined
       const audience = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID;
       if (!audience) {
-        logger.warn('JWT audience validation disabled: AZURE_CLIENT_ID / BC_CLIENT_ID not set. Tokens from other apps in the same tenant will be accepted.');
+        logger.error('JWT audience validation failed: AZURE_CLIENT_ID or BC_CLIENT_ID must be set. Rejecting token.');
+        return false;
       }
       jwt.verify(token, signingKey, {
         issuer: [
           `https://login.microsoftonline.com/${this.tenantId}/v2.0`,
           `https://sts.windows.net/${this.tenantId}/`
         ],
-        ...(audience ? { audience } : {}),
+        audience,
         clockTolerance: 30 // 30 seconds tolerance
       });
 

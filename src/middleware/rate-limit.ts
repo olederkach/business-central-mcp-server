@@ -28,7 +28,7 @@ export const healthCheckLimiter = rateLimit({
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 failed attempts
+  max: 30, // 30 failed attempts per 15 min (MCS makes many rapid calls during setup)
   skipSuccessfulRequests: true, // Only count failed auth attempts
   message: {
     error: 'Too Many Failed Authentication Attempts',
