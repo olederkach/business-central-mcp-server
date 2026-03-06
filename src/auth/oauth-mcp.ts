@@ -141,8 +141,8 @@ export class MCPOAuthAuth {
       const userInfo = await this.validateToken(token);
 
       // Attach user info to request for logging/auditing
-      (req as any).user = userInfo;
-      (req as any).accessToken = token;
+      req.user = userInfo;
+      req.accessToken = token;
 
       logger.info('User authenticated', {
         userId: userInfo.userId,
@@ -283,7 +283,7 @@ export class MCPOAuthAuth {
       payload = jwt.verify(token, signingKey, verifyOptions) as TokenPayload;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
-        logger.error('Token expired', undefined, {
+        logger.error('Token expired', error, {
           expiration: error.expiredAt?.toISOString()
         });
         throw new TokenValidationError(
@@ -320,7 +320,7 @@ export class MCPOAuthAuth {
     if (this.requiredScope && !scopes.includes(this.requiredScope)) {
       logger.error('Missing required scope', undefined, {
         required: this.requiredScope,
-        actual: scopes
+        actual: scopes.join(' ')
       });
       throw new TokenValidationError(
         `Missing required scope: ${this.requiredScope}`,
@@ -362,7 +362,7 @@ export class MCPOAuthAuth {
    * Extract user info from request (after authentication)
    */
   static getUserInfo(req: Request): UserInfo | undefined {
-    return (req as any).user;
+    return req.user;
   }
 }
 

@@ -106,8 +106,10 @@ export function validateEnvironment(): ValidationResult {
 
     // Check CORS origins for HTTP mode
     const corsOrigins = process.env.CORS_ORIGINS;
-    if (!corsOrigins || corsOrigins === '*') {
-      warnings.push('CORS_ORIGINS should be set to specific origins for production (not wildcard)');
+    if (!corsOrigins) {
+      warnings.push('CORS_ORIGINS not set — cross-origin requests will be denied');
+    } else if (corsOrigins.includes('*')) {
+      warnings.push('CORS_ORIGINS contains wildcard (*) which is blocked at runtime when credentials are enabled. Use specific origins.');
     }
   } else {
     // stdio mode: Can use env vars OR CLI args

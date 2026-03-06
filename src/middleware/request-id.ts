@@ -7,11 +7,14 @@ import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 
-// Extend Express Request type to include requestId
+// Extend Express Request type for custom properties used across middleware
 declare global {
   namespace Express {
     interface Request {
       requestId?: string;
+      bcConfig?: any;
+      accessToken?: string;
+      user?: any;
     }
   }
 }

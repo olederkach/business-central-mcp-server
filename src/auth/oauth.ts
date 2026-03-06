@@ -9,8 +9,9 @@ import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
 
-interface TokenCache {
+interface TokenCacheEntry {
   token: string;
   expiresAt: Date;
   tenantId: string;
@@ -20,7 +21,7 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export class OAuthAuth {
   private msalClient: ConfidentialClientApplication;
-  private tokenCache: Map<string, TokenCache>;
+  private tokenCache: LRUCache<string, TokenCacheEntry>;
   private pendingStates: Map<string, number>;
   private tenantId: string;
 
@@ -35,7 +36,7 @@ export class OAuthAuth {
     clientId?: string,
     clientSecret?: string
   ) {
-    this.tokenCache = new Map();
+    this.tokenCache = new LRUCache({ max: 50, ttl: 60 * 60 * 1000 });
     this.pendingStates = new Map();
 
     // Priority: constructor params > environment variables
@@ -94,7 +95,7 @@ export class OAuthAuth {
       return;
     }
 
-    (req as any).accessToken = token;
+    req.accessToken = token;
     next();
   }
 

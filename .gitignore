@@ -122,4 +122,4 @@ helm/values-*.yaml
 .mcp.json
 
 # npm pack artifacts
-*.tgz
+*.tgzmcp.json

@@ -155,14 +155,9 @@ export function createCopilotSseEndpoint(): Router {
         };
       }
 
-      // Handle notifications (no id = notification, no response needed)
-      if (!('id' in body)) {
-        logger.info(`Notification received: ${body.method}`);
-        return null;
-      }
-
       // Handle missing method
-      if (!body.method) {
+      if (!body.method || typeof body.method !== 'string') {
+        if (!('id' in body)) return null; // notification without method — ignore
         return {
           jsonrpc: '2.0',
           id: body.id,
@@ -173,16 +168,30 @@ export function createCopilotSseEndpoint(): Router {
         };
       }
 
-      // Validate JSON-RPC method
+      // Validate JSON-RPC method against allowlist BEFORE processing (including notifications)
+      // Copilot SSE intentionally supports a narrower subset of MCP methods than the
+      // full spec (see ALLOWED_JSONRPC_METHODS in input-validator.ts for the complete list).
+      // This transport only handles the methods needed for Copilot Studio integration.
       if (!ALLOWED_METHODS.has(body.method)) {
+        if (!('id' in body)) {
+          logger.warn('Notification with unrecognized method rejected');
+          return null;
+        }
+        logger.warn('Rejected unrecognized method', { method: body.method });
         return {
           jsonrpc: '2.0',
           id: body.id,
           error: {
             code: -32601,
-            message: `Method not found: ${body.method}`
+            message: 'Method not found'
           }
         };
+      }
+
+      // Handle notifications (no id = notification, no response needed)
+      if (!('id' in body)) {
+        logger.info('Notification received', { method: body.method });
+        return null;
       }
 
       // Handle specific methods
@@ -232,8 +241,8 @@ export function createCopilotSseEndpoint(): Router {
       }
 
       if (body.method === 'tools/list') {
-        // Feature flag: Use generic tools if TOOL_MODE=generic
-        const useGenericTools = process.env.TOOL_MODE?.trim() === 'generic';
+        // Generic tools are the default; set TOOL_MODE=dynamic to use legacy metadata-generated tools
+        const useGenericTools = process.env.TOOL_MODE?.trim() !== 'dynamic';
 
         logger.info('🔧 tools/list request received', {
           toolMode: process.env.TOOL_MODE,
@@ -332,18 +341,19 @@ export function createCopilotSseEndpoint(): Router {
 
         const toolName = body.params.name;
         const toolArgs = body.params.arguments || {};
-        const useGenericTools = process.env.TOOL_MODE?.trim() === 'generic';
+        const useGenericTools = process.env.TOOL_MODE?.trim() !== 'dynamic';
 
         // Validate tool name before execution
         try {
           validateToolName(toolName);
         } catch {
+          logger.warn('Invalid tool name rejected', { toolName });
           return {
             jsonrpc: '2.0',
             id: body.id,
             error: {
               code: -32602,
-              message: `Invalid tool name: ${toolName}`
+              message: 'Invalid tool name'
             }
           };
         }
@@ -477,12 +487,13 @@ export function createCopilotSseEndpoint(): Router {
         try {
           validateResourceUri(uri);
         } catch {
+          logger.warn('Invalid resource URI rejected', { uri });
           return {
             jsonrpc: '2.0',
             id: body.id,
             error: {
               code: -32602,
-              message: `Invalid resource URI: ${uri}`
+              message: 'Invalid resource URI'
             }
           };
         }
@@ -865,7 +876,11 @@ Return the customer details including name, email, phone number, and address.`;
 
           let filters = [];
           if (customerNumber) filters.push(`customerNumber eq '${customerNumber.replace(/'/g, "''")}'`);
-          if (dateFilter) filters.push(dateFilter);
+          if (dateFilter) {
+            // Sanitize dateFilter to prevent OData injection — strip dangerous chars
+            const safeDateFilter = String(dateFilter).replace(/[;'"\\<>]/g, '');
+            if (safeDateFilter) filters.push(safeDateFilter);
+          }
           const filterStr = filters.length > 0 ? filters.join(' and ') : '';
 
           const prompt = `Please query Business Central sales orders${filterStr ? ` with filter: ${filterStr}` : ''}. Limit results to ${top} records.

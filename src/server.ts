@@ -314,7 +314,7 @@ app.use('*', (req, res) => {
 
 app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
   // Get request ID for correlation
-  const requestId = (req as any).requestId;
+  const requestId = req.requestId;
 
   // SECURITY: Log full error details server-side
   logger.error('Unhandled error', error, {

@@ -25,10 +25,10 @@ export function parseBCConfigWithFallback(req: Request, res: Response, next: Nex
     const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 
     try {
-      (req as any).bcConfig = BCConfigParser.parseFromUrl(fullUrl);
+      req.bcConfig = BCConfigParser.parseFromUrl(fullUrl);
       logger.debug('BC config parsed from URL', {
-        tenantId: (req as any).bcConfig.tenantId,
-        environment: (req as any).bcConfig.environment
+        tenantId: req.bcConfig.tenantId,
+        environment: req.bcConfig.environment
       });
       next();
       return;
@@ -72,7 +72,7 @@ export function parseBCConfigWithFallback(req: Request, res: Response, next: Nex
     const envUrl = `https://api.businesscentral.dynamics.com/v2.0/${tenantId}/${environment}/api/${apiVersion}/companies(${companyId})`;
 
     try {
-      (req as any).bcConfig = BCConfigParser.parseFromUrl(envUrl);
+      req.bcConfig = BCConfigParser.parseFromUrl(envUrl);
       logger.info('BC config parsed from environment variables', {
         tenantId,
         environment,
@@ -107,7 +107,7 @@ export function parseBCConfigWithFallback(req: Request, res: Response, next: Nex
 export function parseBCConfigStrict(req: Request, res: Response, next: NextFunction): void {
   try {
     const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    (req as any).bcConfig = BCConfigParser.parseFromUrl(fullUrl);
+    req.bcConfig = BCConfigParser.parseFromUrl(fullUrl);
     next();
   } catch (error) {
     res.status(400).json({

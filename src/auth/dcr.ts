@@ -15,6 +15,7 @@
 import { Request, Response } from 'express';
 import { randomBytes, timingSafeEqual } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
 
 interface RegisteredClient {
   client_id: string;
@@ -62,8 +63,8 @@ interface ClientRegistrationResponse {
   registration_access_token: string;
 }
 
-// In-memory client store (no disk persistence for secrets)
-const registeredClients = new Map<string, RegisteredClient>();
+// In-memory client store — bounded to prevent exhaustion from excessive registrations
+const registeredClients = new LRUCache<string, RegisteredClient>({ max: 100, ttl: 24 * 60 * 60 * 1000 });
 
 export class DynamicClientRegistration {
   private tenantId: string;

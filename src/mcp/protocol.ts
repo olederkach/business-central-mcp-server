@@ -265,7 +265,7 @@ export class McpProtocolHandler {
   }
 
   private async handleToolsCall(params: any, req: Request): Promise<any> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -305,7 +305,7 @@ export class McpProtocolHandler {
   }
 
   private async handleResourcesList(req: Request): Promise<{ resources: any[] }> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -341,7 +341,7 @@ export class McpProtocolHandler {
   }
 
   private async handleResourcesRead(params: any, req: Request): Promise<any> {
-    const bcConfig = (req as any).bcConfig;
+    const bcConfig = req.bcConfig;
     if (!bcConfig) {
       throw new Error('BC configuration not found in request');
     }
@@ -514,7 +514,7 @@ export class McpProtocolHandler {
   }
 
   private async getAccessToken(req: Request, tenantId: string): Promise<string> {
-    const explicitToken = (req as any).accessToken;
+    const explicitToken = req.accessToken;
     if (explicitToken) {
       return explicitToken;
     }

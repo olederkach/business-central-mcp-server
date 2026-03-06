@@ -75,12 +75,12 @@ describe('resolveBCConfig', () => {
     expect(() => resolveBCConfig({})).toThrow();
   });
 
-  it('defaults environment to Sandbox', () => {
+  it('defaults environment to Production', () => {
     process.env.BC_TENANT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     delete process.env.BC_ENVIRONMENT;
 
     const config = resolveBCConfig({});
-    expect(config.environment).toBeDefined();
+    expect(config.environment).toBe('Production');
   });
 
   it('defaults apiVersion to v2.0', () => {
