@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { DefaultAzureCredential } from '@azure/identity';
+import { logger } from '../utils/logger.js';
 
 interface ApiKeyCache {
   hash: string;
@@ -30,7 +31,7 @@ export class ApiKeyAuth {
           credential
         );
       } catch (error) {
-        console.warn('Failed to initialize Key Vault client:', error);
+        logger.warn('Failed to initialize Key Vault client');
       }
     }
   }
@@ -58,7 +59,7 @@ export class ApiKeyAuth {
 
       next();
     } catch (error) {
-      console.error('API key authentication error:', error);
+      logger.error('API key authentication error', error instanceof Error ? error : undefined);
       res.status(500).json({ error: 'Authentication failed' });
     }
   }
@@ -163,7 +164,7 @@ export class ApiKeyAuth {
           }
         }
       } catch (error) {
-        console.warn('Key Vault lookup failed:', error);
+        logger.warn('Key Vault lookup failed');
       }
     }
 

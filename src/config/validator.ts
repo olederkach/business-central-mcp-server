@@ -4,6 +4,7 @@
  */
 
 import { parseCLIArgs } from '../config.js';
+import { logger } from '../utils/logger.js';
 
 export interface ValidationResult {
   valid: boolean;
@@ -161,22 +162,21 @@ export function validateEnvironment(): ValidationResult {
  */
 export function printValidationResults(result: ValidationResult): void {
   if (!result.valid) {
-    console.error('\n❌ ENVIRONMENT VALIDATION FAILED\n');
-    console.error('Errors:');
-    result.errors.forEach(err => console.error(`  ❌ ${err}`));
+    logger.error('ENVIRONMENT VALIDATION FAILED');
+    result.errors.forEach(err => logger.error(`  ${err}`));
   }
 
   if (result.warnings.length > 0) {
-    console.warn('\n⚠️  CONFIGURATION WARNINGS\n');
-    result.warnings.forEach(warn => console.warn(`  ⚠️  ${warn}`));
+    logger.warn('CONFIGURATION WARNINGS');
+    result.warnings.forEach(warn => logger.warn(`  ${warn}`));
   }
 
   if (result.valid && result.warnings.length === 0) {
-    console.log('\n✅ ENVIRONMENT VALIDATION PASSED\n');
+    logger.info('ENVIRONMENT VALIDATION PASSED');
   }
 
   if (result.valid && result.warnings.length > 0) {
-    console.log('\n✅ ENVIRONMENT VALIDATION PASSED (with warnings)\n');
+    logger.info('ENVIRONMENT VALIDATION PASSED (with warnings)');
   }
 }
 
@@ -188,7 +188,7 @@ export function validateAndExit(): void {
   printValidationResults(result);
 
   if (!result.valid) {
-    console.error('\n💡 Tip: Copy .env.example to .env and fill in your values\n');
+    logger.error('Tip: Copy .env.example to .env and fill in your values');
     process.exit(1);
   }
 }
