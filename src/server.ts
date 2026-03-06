@@ -203,6 +203,49 @@ if (config.authMode === 'oauth') {
   app.get('/oauth/callback', oauthRoutes.callback);
 }
 
+// MCP OAuth endpoints — Claude.ai and other MCP clients send OAuth requests here
+// These redirect/proxy to Azure AD per the MCP authorization spec
+if (config.authMode === 'oauth') {
+  const azureTenantId = process.env.AZURE_TENANT_ID || process.env.BC_TENANT_ID;
+  const azureClientId = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID;
+  const azureAdBase = `https://login.microsoftonline.com/${azureTenantId}/oauth2/v2.0`;
+
+  // /authorize — redirect to Azure AD authorize endpoint
+  app.get('/authorize', (req, res) => {
+    const params = new URLSearchParams(req.query as Record<string, string>);
+    // Replace generic scope with Azure AD scope
+    if (params.get('scope') && !params.get('scope')?.startsWith('api://')) {
+      params.set('scope', `api://${azureClientId}/.default openid`);
+    }
+    res.redirect(`${azureAdBase}/authorize?${params.toString()}`);
+  });
+
+  // /token — proxy to Azure AD token endpoint
+  app.post('/token', express.urlencoded({ extended: true }), async (req, res) => {
+    try {
+      const body = new URLSearchParams(req.body as Record<string, string>);
+      // Inject client secret if not provided (MCP clients may not have it)
+      if (!body.get('client_secret') && process.env.AZURE_CLIENT_SECRET) {
+        body.set('client_secret', process.env.AZURE_CLIENT_SECRET);
+      }
+      // Replace generic scope with Azure AD scope
+      if (body.get('scope') && !body.get('scope')?.startsWith('api://')) {
+        body.set('scope', `api://${azureClientId}/.default`);
+      }
+      const response = await fetch(`${azureAdBase}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      });
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      logger.error('Token proxy error', error instanceof Error ? error : undefined);
+      res.status(500).json({ error: 'token_proxy_error' });
+    }
+  });
+}
+
 // SECURITY: Basic health check (minimal info, no auth required)
 // Used by Azure Container Apps health probes and load balancers
 app.get('/health', healthCheckLimiter, (_req, res) => {

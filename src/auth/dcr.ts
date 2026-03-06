@@ -93,8 +93,8 @@ export class DynamicClientRegistration {
   getDiscoveryDocument() {
     return {
       issuer: this.baseUrl,
-      authorization_endpoint: `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/authorize`,
-      token_endpoint: `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`,
+      authorization_endpoint: `${this.baseUrl}/authorize`,
+      token_endpoint: `${this.baseUrl}/token`,
       jwks_uri: `https://login.microsoftonline.com/${this.tenantId}/discovery/v2.0/keys`,
       response_types_supported: ['code', 'token', 'id_token', 'code id_token', 'id_token token'],
       subject_types_supported: ['pairwise'],
