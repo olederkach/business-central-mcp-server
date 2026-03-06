@@ -192,12 +192,16 @@ export class DynamicClientRegistration {
     const secretBuf = Buffer.from(clientSecret);
     const expectedBuf = Buffer.from(expectedSecret);
 
-    if (secretBuf.length !== expectedBuf.length) {
-      return false;
-    }
+    // Pad both buffers to equal length to prevent timing-based length leaks
+    const maxLen = Math.max(secretBuf.length, expectedBuf.length);
+    const paddedSecret = Buffer.alloc(maxLen);
+    const paddedExpected = Buffer.alloc(maxLen);
+    secretBuf.copy(paddedSecret);
+    expectedBuf.copy(paddedExpected);
 
-    const secretMatch = timingSafeEqual(secretBuf, expectedBuf);
-    return idMatch && secretMatch;
+    const secretMatch = timingSafeEqual(paddedSecret, paddedExpected);
+    // Length must also match — but checked after constant-time comparison
+    return idMatch && secretMatch && secretBuf.length === expectedBuf.length;
   }
 
   getClient(clientId: string): RegisteredClient | null {

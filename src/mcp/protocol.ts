@@ -19,6 +19,7 @@ import { BCApiClient } from '../bc/client.js';
 import { logger } from '../utils/logger.js';
 import { LogSanitizer } from '../utils/log-sanitizer.js';
 import { validateJsonRpcMethod, validateToolName, validateResourceUri, ValidationError } from '../utils/input-validator.js';
+import { LRUCache } from 'lru-cache';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -59,7 +60,7 @@ interface ManagedSession {
 export class McpProtocolHandler {
   private oauthAuth?: OAuthAuth;
   private metadataMode: MetadataMode;
-  private sessions = new Map<string, ManagedSession>();
+  private sessions = new LRUCache<string, ManagedSession>({ max: 100, ttl: 30 * 60 * 1000 });
 
   constructor(metadataMode: MetadataMode = 'all') {
     this.metadataMode = metadataMode;
