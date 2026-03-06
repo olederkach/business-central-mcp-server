@@ -1,82 +1,27 @@
 name: Deploy to Azure Container Apps
 
 # ══════════════════════════════════════════════════════════════════
-#  SETUP GUIDE — Read this before running the workflow
-# ══════════════════════════════════════════════════════════════════
+#  PREREQUISITE: Configure GitHub Secrets before running
 #
-#  This workflow deploys the MCP server to Azure Container Apps.
-#  Before running it, you need to complete these one-time steps:
+#  Go to: Repo → Settings → Secrets and variables → Actions
 #
-#  ── Step 1: Create Azure Infrastructure ──────────────────────
+#  Required secrets (credentials that must not be visible):
+#    AZURE_CLIENT_ID         - Azure AD app registration for OIDC deployment
+#    AZURE_TENANT_ID         - Azure AD tenant ID
+#    AZURE_SUBSCRIPTION_ID   - Azure subscription ID
+#    BC_CLIENT_ID            - App registration for BC API access
+#    BC_CLIENT_SECRET        - App registration secret
+#    MCP_API_KEYS            - API key(s) for MCP auth (generate: openssl rand -base64 32)
 #
-#  Option A: Use the Azure CLI script (recommended):
-#    bash scripts/deployment/deploy-to-azure.sh
-#
-#  Option B: Create manually in Azure Portal:
-#    1. Create a Resource Group (e.g. "mcp-bc-rg")
-#    2. Create an Azure Container Registry (e.g. "mcpbcregistry")
-#    3. Create a Container Apps Environment
-#    4. Create a Container App (e.g. "mcp-bc-server")
-#       - Image: any placeholder (workflow will update it)
-#       - Ingress: enabled, external, port 3005
-#
-#  ── Step 2: Create Azure AD App Registration (for OIDC) ─────
-#
-#    1. Go to Azure Portal → Azure Active Directory → App registrations
-#    2. Create a new registration (e.g. "github-deploy-mcp")
-#    3. Under "Certificates & secrets" → "Federated credentials":
-#       - Issuer: https://token.actions.githubusercontent.com
-#       - Subject: repo:<your-github-user>/business-central-mcp-server:environment:production
-#       - Audience: api://AzureADTokenExchange
-#    4. Grant the app "Contributor" role on your Resource Group
-#    5. Note: AZURE_CLIENT_ID = this app's Application (client) ID
-#           AZURE_TENANT_ID = your Azure AD tenant ID
-#           AZURE_SUBSCRIPTION_ID = your Azure subscription ID
-#
-#  ── Step 3: Create BC App Registration (for BC API access) ──
-#
-#    1. In Azure AD, create another app registration (e.g. "bc-mcp-api")
-#    2. Add API permission: Dynamics 365 Business Central → API.ReadWrite.All
-#    3. Create a client secret
-#    4. Note: BC_CLIENT_ID = this app's Application (client) ID
-#           BC_CLIENT_SECRET = the client secret value
-#    5. In BC Admin Center, authorize this app for your environment
-#
-#  ── Step 4: Configure GitHub Secrets ─────────────────────────
-#
-#    Go to your repo → Settings → Secrets and variables → Actions
-#    Add these secrets:
-#
-#    Azure OIDC (from Step 2):
-#      AZURE_CLIENT_ID         = <app registration client ID>
-#      AZURE_TENANT_ID         = <Azure AD tenant ID>
-#      AZURE_SUBSCRIPTION_ID   = <Azure subscription ID>
-#
-#    Business Central (from Step 3 + BC Admin Center):
-#      BC_TENANT_ID            = <your Entra ID / BC tenant ID>
-#      BC_CLIENT_ID            = <BC app registration client ID>
-#      BC_CLIENT_SECRET        = <BC app registration secret>
-#      BC_COMPANY_ID           = <target BC company GUID>
-#
-#    Server security:
-#      MCP_API_KEYS            = <generate with: openssl rand -base64 32>
-#
-#    Optional:
-#      APPLICATIONINSIGHTS_CONNECTION_STRING = <App Insights connection string>
-#
-#  ── Step 5: Run the workflow ─────────────────────────────────
-#
-#    Go to Actions → "Deploy to Azure Container Apps" → Run workflow
-#    Fill in the inputs (ACR name, Container App name, Resource Group)
-#    and click "Run workflow"
-#
+#  See docs/DEPLOYMENT.md for full setup instructions.
 # ══════════════════════════════════════════════════════════════════
 
 on:
   workflow_dispatch:
     inputs:
+      # ── Deployment ──
       environment:
-        description: "Target environment"
+        description: "GitHub environment (for secret scoping)"
         required: true
         default: "production"
         type: choice
@@ -84,19 +29,31 @@ on:
           - production
           - staging
       image_tag:
-        description: "Image tag (defaults to git SHA)"
+        description: "Docker image tag (defaults to git SHA)"
         required: false
         type: string
+
+      # ── Azure Infrastructure ──
       acr_name:
-        description: "Azure Container Registry name (e.g. mcpbcregistry)"
+        description: "Azure Container Registry name"
         required: true
         type: string
       container_app_name:
-        description: "Azure Container App name (e.g. mcp-bc-server)"
+        description: "Azure Container App name"
         required: true
         type: string
       resource_group:
-        description: "Azure Resource Group (e.g. mcp-bc-rg)"
+        description: "Azure Resource Group"
+        required: true
+        type: string
+
+      # ── Business Central Connection ──
+      bc_tenant_id:
+        description: "BC / Entra ID tenant ID (GUID)"
+        required: true
+        type: string
+      bc_company_id:
+        description: "BC company ID (GUID)"
         required: true
         type: string
       bc_environment_name:
@@ -107,6 +64,39 @@ on:
         options:
           - Production
           - Sandbox
+
+      # ── Server Configuration ──
+      auth_mode:
+        description: "Authentication mode"
+        required: true
+        default: "api-key"
+        type: choice
+        options:
+          - api-key
+          - oauth
+      log_level:
+        description: "Log level"
+        required: true
+        default: "info"
+        type: choice
+        options:
+          - debug
+          - info
+          - warn
+          - error
+      metadata_mode:
+        description: "BC metadata discovery mode"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - extensions-only
+      cache_ttl_seconds:
+        description: "Cache TTL in seconds"
+        required: true
+        default: "3600"
+        type: string
 
 env:
   IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
@@ -122,29 +112,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Validate required secrets ──
+      # ── Validate secrets ──
       - name: Validate required secrets
         run: |
           missing=()
           [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] && missing+=("AZURE_CLIENT_ID")
           [ -z "${{ secrets.AZURE_TENANT_ID }}" ] && missing+=("AZURE_TENANT_ID")
           [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ] && missing+=("AZURE_SUBSCRIPTION_ID")
-          [ -z "${{ secrets.BC_TENANT_ID }}" ] && missing+=("BC_TENANT_ID")
           [ -z "${{ secrets.BC_CLIENT_ID }}" ] && missing+=("BC_CLIENT_ID")
           [ -z "${{ secrets.BC_CLIENT_SECRET }}" ] && missing+=("BC_CLIENT_SECRET")
-          [ -z "${{ secrets.BC_COMPANY_ID }}" ] && missing+=("BC_COMPANY_ID")
           [ -z "${{ secrets.MCP_API_KEYS }}" ] && missing+=("MCP_API_KEYS")
 
           if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Missing required secrets: ${missing[*]}"
-            echo ""
-            echo "Configure these in GitHub → Settings → Secrets and variables → Actions"
-            echo "See the setup guide in this workflow file for details."
+            echo "::error::Missing required GitHub Secrets: ${missing[*]}"
+            echo "Configure at: Settings → Secrets and variables → Actions"
             exit 1
           fi
           echo "All required secrets are configured"
 
-      # ── Azure Login (OIDC federated credentials) ──
+      # ── Azure Login (OIDC) ──
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -163,20 +149,18 @@ jobs:
           docker push $IMAGE:${{ env.IMAGE_TAG }}
           docker push $IMAGE:latest
 
-      # ── Sync GitHub Secrets → Container App Secrets ──
+      # ── Sync secrets to Container App ──
       - name: Configure Container App secrets
         run: |
           az containerapp secret set \
             --name ${{ inputs.container_app_name }} \
             --resource-group ${{ inputs.resource_group }} \
             --secrets \
-              bc-tenant-id="${{ secrets.BC_TENANT_ID }}" \
               bc-client-id="${{ secrets.BC_CLIENT_ID }}" \
               bc-client-secret="${{ secrets.BC_CLIENT_SECRET }}" \
-              bc-company-id="${{ secrets.BC_COMPANY_ID }}" \
               mcp-api-keys="${{ secrets.MCP_API_KEYS }}"
 
-      # ── Deploy to Container Apps ──
+      # ── Deploy ──
       - name: Deploy to Azure Container Apps
         uses: azure/container-apps-deploy-action@v1
         with:
@@ -186,15 +170,15 @@ jobs:
           environmentVariables: >-
             NODE_ENV=production
             PORT=3005
-            AUTH_MODE=api-key
-            LOG_LEVEL=info
-            METADATA_MODE=all
-            CACHE_TTL_SECONDS=3600
-            BC_TENANT_ID=secretref:bc-tenant-id
+            AUTH_MODE=${{ inputs.auth_mode }}
+            LOG_LEVEL=${{ inputs.log_level }}
+            METADATA_MODE=${{ inputs.metadata_mode }}
+            CACHE_TTL_SECONDS=${{ inputs.cache_ttl_seconds }}
+            BC_TENANT_ID=${{ inputs.bc_tenant_id }}
+            BC_ENVIRONMENT_NAME=${{ inputs.bc_environment_name }}
+            BC_COMPANY_ID=${{ inputs.bc_company_id }}
             BC_CLIENT_ID=secretref:bc-client-id
             BC_CLIENT_SECRET=secretref:bc-client-secret
-            BC_COMPANY_ID=secretref:bc-company-id
-            BC_ENVIRONMENT_NAME=${{ inputs.bc_environment_name }}
             MCP_API_KEYS=secretref:mcp-api-keys
 
       # ── Health check ──
@@ -206,6 +190,8 @@ jobs:
             --query "properties.configuration.ingress.fqdn" -o tsv)
 
           echo "Deployed to: https://$APP_URL"
+          echo "MCP Endpoint: https://$APP_URL/mcp"
+          echo ""
           echo "Waiting for health check..."
           sleep 15
 
