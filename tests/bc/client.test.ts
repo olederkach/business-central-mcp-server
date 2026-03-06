@@ -14,13 +14,14 @@ describe('BCApiClient', () => {
 
       const path = client.getBaseApiPath();
 
-      // The path should contain /v2.0/test-tenant/Sandbox/api/v2.0 exactly once
-      // Regression: it was returning /v2.0/test-tenant/Sandbox/v2.0/test-tenant/Sandbox/api/v2.0
-      // The path should contain the tenant ID
-      // On main (unfixed), it may be doubled. After US-02 fix, it will appear once.
+      // Regression: was returning /v2.0/tenant/Sandbox/v2.0/tenant/Sandbox/api/v2.0
+      // After US-02 fix, tenant and environment should appear exactly once
       expect(path).toContain('/api/v2.0');
       expect(path).toContain('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
       expect(path).toContain('Sandbox');
+      // Negative assertion: tenant ID must NOT appear more than once (the doubled-prefix bug)
+      const tenantOccurrences = path.split('a1b2c3d4-e5f6-7890-abcd-ef1234567890').length - 1;
+      expect(tenantOccurrences).toBe(1);
     });
 
     it('returns correct path for custom API', () => {

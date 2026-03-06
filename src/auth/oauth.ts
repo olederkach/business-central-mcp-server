@@ -100,12 +100,18 @@ export class OAuthAuth {
 
   async initiateFlow(req: Request, res: Response): Promise<void> {
     const redirectUri = `${req.protocol}://${req.get('host')}/oauth/callback`;
-    const state = randomUUID();
-    this.pendingStates.set(state, Date.now());
-    // Evict expired states
+    // Evict expired states first
     for (const [key, ts] of this.pendingStates) {
       if (Date.now() - ts > STATE_TTL_MS) this.pendingStates.delete(key);
     }
+    // Cap pending states to prevent memory exhaustion from repeated unauthenticated flows
+    if (this.pendingStates.size >= 1000) {
+      logger.warn('OAuth pending states limit reached, rejecting new flow');
+      res.status(429).json({ error: 'Too many pending OAuth flows' });
+      return;
+    }
+    const state = randomUUID();
+    this.pendingStates.set(state, Date.now());
 
     const authUrlRequest: AuthorizationUrlRequest = {
       scopes: ['https://api.businesscentral.dynamics.com/.default'],
@@ -217,6 +223,9 @@ export class OAuthAuth {
 
       // Verify signature, issuer, audience, and expiration
       const audience = process.env.AZURE_CLIENT_ID || process.env.BC_CLIENT_ID;
+      if (!audience) {
+        logger.warn('JWT audience validation disabled: AZURE_CLIENT_ID / BC_CLIENT_ID not set. Tokens from other apps in the same tenant will be accepted.');
+      }
       jwt.verify(token, signingKey, {
         issuer: [
           `https://login.microsoftonline.com/${this.tenantId}/v2.0`,
