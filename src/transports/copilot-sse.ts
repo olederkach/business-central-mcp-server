@@ -16,6 +16,22 @@ import { GenericToolExecutor } from '../tools/generic-executor.js';
 import { BCApiClient } from '../bc/client.js';
 import { CompanyManager } from '../api/company-manager.js';
 import { ApiContextManager } from '../api/api-context-manager.js';
+import { validateToolName, validateResourceUri } from '../utils/input-validator.js';
+import { LRUCache } from 'lru-cache';
+
+interface CopilotSession {
+  bcClient: BCApiClient;
+  companyManager: CompanyManager;
+  apiContextManager: ApiContextManager;
+}
+
+const ALLOWED_METHODS = new Set([
+  'initialize', 'notifications/initialized',
+  'tools/list', 'tools/call',
+  'resources/list', 'resources/read',
+  'prompts/list', 'prompts/get',
+  'ping'
+]);
 
 export function createCopilotSseEndpoint(): Router {
   const router = Router();
@@ -32,6 +48,23 @@ export function createCopilotSseEndpoint(): Router {
     } catch (error) {
       logger.error('OAuth initialization failed', error instanceof Error ? error : undefined);
     }
+  }
+
+  // Session cache: reuse BCApiClient/CompanyManager/ApiContextManager across requests
+  const sessions = new LRUCache<string, CopilotSession>({ max: 50, ttl: 30 * 60 * 1000 });
+
+  function getOrCreateSession(config: typeof bcConfig): CopilotSession {
+    const key = `${config.tenantId}:${config.environment}`;
+    let session = sessions.get(key);
+    if (!session) {
+      const bcClientForDiscovery = new BCApiClient(config);
+      const apiContextManager = new ApiContextManager(bcClientForDiscovery);
+      const bcClient = new BCApiClient(config, apiContextManager);
+      const companyManager = new CompanyManager(bcClient);
+      session = { bcClient, companyManager, apiContextManager };
+      sessions.set(key, session);
+    }
+    return session;
   }
 
   /**
@@ -136,6 +169,18 @@ export function createCopilotSseEndpoint(): Router {
           error: {
             code: -32600,
             message: 'Invalid Request: missing method'
+          }
+        };
+      }
+
+      // Validate JSON-RPC method
+      if (!ALLOWED_METHODS.has(body.method)) {
+        return {
+          jsonrpc: '2.0',
+          id: body.id,
+          error: {
+            code: -32601,
+            message: `Method not found: ${body.method}`
           }
         };
       }
@@ -289,6 +334,20 @@ export function createCopilotSseEndpoint(): Router {
         const toolArgs = body.params.arguments || {};
         const useGenericTools = process.env.TOOL_MODE?.trim() === 'generic';
 
+        // Validate tool name before execution
+        try {
+          validateToolName(toolName);
+        } catch {
+          return {
+            jsonrpc: '2.0',
+            id: body.id,
+            error: {
+              code: -32602,
+              message: `Invalid tool name: ${toolName}`
+            }
+          };
+        }
+
         logger.info('🔧 tools/call request received', {
           toolName,
           arguments: toolArgs,
@@ -301,13 +360,7 @@ export function createCopilotSseEndpoint(): Router {
         if (useGenericTools && isGenericTool(toolName)) {
           logger.info(`⚡ Executing generic tool: ${toolName}`);
 
-          // Create BCApiClient without ApiContextManager first (for ApiContextManager to use)
-          const bcClientForDiscovery = new BCApiClient(bcConfig);
-          const apiContextManager = new ApiContextManager(bcClientForDiscovery);
-
-          // Create BCApiClient with ApiContextManager for dynamic API context support
-          const bcClient = new BCApiClient(bcConfig, apiContextManager);
-          const companyManager = new CompanyManager(bcClient);
+          const { bcClient, companyManager, apiContextManager } = getOrCreateSession(bcConfig);
           const executor = new GenericToolExecutor(bcClient, companyManager, apiContextManager, accessToken);
 
           const startTime = Date.now();
@@ -416,6 +469,20 @@ export function createCopilotSseEndpoint(): Router {
             error: {
               code: -32602,
               message: 'Invalid params: uri is required'
+            }
+          };
+        }
+
+        // Validate resource URI
+        try {
+          validateResourceUri(uri);
+        } catch {
+          return {
+            jsonrpc: '2.0',
+            id: body.id,
+            error: {
+              code: -32602,
+              message: `Invalid resource URI: ${uri}`
             }
           };
         }
@@ -797,7 +864,7 @@ Return the customer details including name, email, phone number, and address.`;
           const top = args.top || '50';
 
           let filters = [];
-          if (customerNumber) filters.push(`customerNumber eq '${customerNumber}'`);
+          if (customerNumber) filters.push(`customerNumber eq '${customerNumber.replace(/'/g, "''")}'`);
           if (dateFilter) filters.push(dateFilter);
           const filterStr = filters.length > 0 ? filters.join(' and ') : '';
 
