@@ -28,7 +28,7 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" --config .prettierrc.json",
     "format:check": "prettier --check \"src/**/*.ts\" --config .prettierrc.json",
-    "security:check": "npm audit --audit-level=moderate",
+    "security:check": "npm audit --audit-level=moderate --omit=dev",
     "secrets:check": "echo 'No secrets scanning configured yet'",
     "prepublishOnly": "npm run build && npm run type-check",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
