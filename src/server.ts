@@ -205,7 +205,7 @@ app.get('/.well-known/oauth-protected-resource', healthCheckLimiter, (_req, res)
   res.json({
     resource: `${baseUrl}/mcp`,
     authorization_servers: [baseUrl],
-    scopes_supported: [`api://${azureClientId}/.default`, 'openid'],
+    scopes_supported: [`api://${azureClientId}/MCP.Access`, 'openid', 'offline_access'],
     bearer_methods_supported: ['header']
   });
 });
@@ -215,7 +215,7 @@ app.get('/.well-known/oauth-protected-resource/mcp', healthCheckLimiter, (_req, 
   res.json({
     resource: `${baseUrl}/mcp`,
     authorization_servers: [baseUrl],
-    scopes_supported: [`api://${azureClientId}/.default`, 'openid'],
+    scopes_supported: [`api://${azureClientId}/MCP.Access`, 'openid', 'offline_access'],
     bearer_methods_supported: ['header']
   });
 });
@@ -248,9 +248,16 @@ if (config.authMode === 'oauth') {
   // SECURITY: Rate-limited to prevent redirect floods to Azure AD
   app.get('/authorize', authLimiter, (req, res) => {
     const params = new URLSearchParams(req.query as Record<string, string>);
-    // Replace generic scope with Azure AD scope
-    if (params.get('scope') && !params.get('scope')?.startsWith('api://')) {
-      params.set('scope', `api://${azureClientId}/.default openid`);
+
+    // Strip 'resource' parameter — Claude.ai sends this per RFC 8707 (Resource Indicators),
+    // but Azure AD v2.0 derives the resource from the scope's api:// prefix.
+    // Sending both causes AADSTS9010010: "resource doesn't match requested scopes"
+    params.delete('resource');
+
+    // Ensure scope includes the Azure AD API scope
+    const currentScope = params.get('scope') || '';
+    if (!currentScope.includes(`api://${azureClientId}/`)) {
+      params.set('scope', `api://${azureClientId}/MCP.Access openid offline_access`);
     }
     res.redirect(`${azureAdBase}/authorize?${params.toString()}`);
   });
@@ -260,13 +267,18 @@ if (config.authMode === 'oauth') {
   app.post('/token', authLimiter, express.urlencoded({ extended: true }), async (req, res) => {
     try {
       const body = new URLSearchParams(req.body as Record<string, string>);
+
+      // Strip 'resource' parameter — same RFC 8707 issue as /authorize
+      body.delete('resource');
+
       // Inject client secret if not provided (MCP clients may not have it)
       if (!body.get('client_secret') && process.env.AZURE_CLIENT_SECRET) {
         body.set('client_secret', process.env.AZURE_CLIENT_SECRET);
       }
-      // Replace generic scope with Azure AD scope
-      if (body.get('scope') && !body.get('scope')?.startsWith('api://')) {
-        body.set('scope', `api://${azureClientId}/.default`);
+      // Ensure scope includes the Azure AD API scope
+      const currentScope = body.get('scope') || '';
+      if (!currentScope.includes(`api://${azureClientId}/`)) {
+        body.set('scope', `api://${azureClientId}/MCP.Access openid offline_access`);
       }
       const response = await fetch(`${azureAdBase}/token`, {
         method: 'POST',
