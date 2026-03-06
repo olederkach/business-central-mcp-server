@@ -24,8 +24,10 @@ declare global {
  * - Logs request details with ID
  */
 export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Use existing X-Request-ID from client or generate new one
-  const requestId = (req.headers['x-request-id'] as string) || randomUUID();
+  // Use existing X-Request-ID if valid (alphanumeric + hyphens/underscores, max 128 chars)
+  const incoming = req.headers['x-request-id'] as string;
+  const isValid = incoming && /^[a-zA-Z0-9_-]{1,128}$/.test(incoming);
+  const requestId = isValid ? incoming : randomUUID();
 
   // Attach to request object for use in handlers
   req.requestId = requestId;
