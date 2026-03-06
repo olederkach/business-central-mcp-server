@@ -530,7 +530,6 @@ export class BCApiClient {
    */
   getBaseApiPath(): string {
     const effectiveConfig = this.getEffectiveConfig();
-    const basePath = this.buildBaseApiPath(effectiveConfig);
-    return `/v2.0/${effectiveConfig.tenantId}/${effectiveConfig.environment}${basePath}`;
+    return this.buildBaseApiPath(effectiveConfig);
   }
 }
