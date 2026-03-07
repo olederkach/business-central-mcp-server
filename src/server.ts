@@ -268,6 +268,16 @@ if (config.authMode === 'oauth') {
     try {
       const body = new URLSearchParams(req.body as Record<string, string>);
 
+      // Log incoming token request for debugging (no secrets)
+      logger.info('Token proxy request', {
+        grantType: body.get('grant_type'),
+        incomingScope: body.get('scope'),
+        hasResource: !!body.get('resource'),
+        hasClientSecret: !!body.get('client_secret'),
+        hasCode: !!body.get('code'),
+        hasRefreshToken: !!body.get('refresh_token')
+      });
+
       // Strip 'resource' parameter — same RFC 8707 issue as /authorize
       body.delete('resource');
 
@@ -280,6 +290,7 @@ if (config.authMode === 'oauth') {
       if (!currentScope.includes(`api://${azureClientId}/`)) {
         body.set('scope', `api://${azureClientId}/MCP.Access openid offline_access`);
       }
+      logger.info('Token proxy forwarding', { finalScope: body.get('scope') });
       const response = await fetch(`${azureAdBase}/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
