@@ -307,13 +307,13 @@ All resource reads return:
 
 ## Compatibility
 
-- ✅ MCP Protocol: 2025-03-26
-- ✅ Azure AI Foundry Agent Service
-- ✅ Claude Desktop (MCP resources)
-- ✅ Any MCP-compatible client
-- ✅ OAuth 2.0 authentication
-- ✅ API Key authentication
-- ✅ 14 generic tools
+- MCP Protocol: 2025-03-26
+- Azure AI Foundry Agent Service
+- Claude Desktop (MCP resources)
+- Any MCP-compatible client
+- OAuth 2.0 authentication
+- API Key authentication
+- 14 generic tools
 
 ## See Also
 

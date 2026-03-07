@@ -492,4 +492,4 @@ graph TD
 
 ---
 
-*These diagrams represent the current architecture of Business Central MCP Server v2.2.7. For implementation details, see the [source code](../../src/).*
+*These diagrams represent the current architecture of Business Central MCP Server v1.1.0. For implementation details, see the [source code](../../src/).*

@@ -261,7 +261,8 @@ export class MCPOAuthAuth {
     }
 
     // Step 3: VERIFY JWT SIGNATURE and validate claims
-    const expectedAudience = `api://${this.clientId}`;
+    // Accept both formats: v1.0 tokens use "api://{clientId}", v2.0 tokens use bare "{clientId}"
+    const expectedAudiences = [`api://${this.clientId}`, this.clientId];
     const expectedIssuers = [
       `https://login.microsoftonline.com/${this.tenantId}/v2.0`,
       `https://sts.windows.net/${this.tenantId}/`
@@ -270,7 +271,7 @@ export class MCPOAuthAuth {
     let payload: TokenPayload;
     try {
       const verifyOptions: jwt.VerifyOptions = {
-        audience: this.validateAudience ? expectedAudience : undefined,
+        audience: this.validateAudience ? expectedAudiences as [string, ...string[]] : undefined,
         algorithms: ['RS256'], // Azure AD uses RS256
         clockTolerance: 60 // Allow 60 seconds clock skew
       };
@@ -292,7 +293,14 @@ export class MCPOAuthAuth {
           { expiredAt: error.expiredAt?.toISOString() }
         );
       } else if (error instanceof jwt.JsonWebTokenError) {
-        logger.error('JWT verification failed: ' + error.message);
+        // Log actual token claims for debugging audience/issuer mismatches
+        const decodedPayload = decoded?.payload as Record<string, unknown> | undefined;
+        logger.error('JWT verification failed: ' + error.message, undefined, {
+          expectedAudiences,
+          actualAudience: decodedPayload?.aud,
+          actualIssuer: decodedPayload?.iss,
+          tokenVersion: decodedPayload?.ver
+        });
         throw new TokenValidationError(
           `JWT verification failed: ${error.message}`,
           'verification_failed',

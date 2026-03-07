@@ -15,8 +15,30 @@ GET {{baseUrl}}/health
 ### OpenAPI Spec (for Power Platform Custom Connector)
 GET {{baseUrl}}/openapi.json
 
-### OpenID Configuration (for OAuth/DCR discovery)
+# ==============================================
+# DISCOVERY ENDPOINTS (no auth, rate-limited)
+# ==============================================
+
+### OpenID Configuration (RFC 8414 / OpenID Connect Discovery)
 GET {{baseUrl}}/.well-known/openid-configuration
+
+### OAuth Authorization Server Metadata (RFC 8414)
+GET {{baseUrl}}/.well-known/oauth-authorization-server
+
+### OAuth Authorization Server Metadata - /mcp sub-path (RFC 8414)
+GET {{baseUrl}}/.well-known/oauth-authorization-server/mcp
+
+### OpenID Configuration - /mcp sub-path
+GET {{baseUrl}}/.well-known/openid-configuration/mcp
+
+### MCP sub-path OpenID Configuration
+GET {{baseUrl}}/mcp/.well-known/openid-configuration
+
+### Protected Resource Metadata (RFC 9728)
+GET {{baseUrl}}/.well-known/oauth-protected-resource
+
+### Protected Resource Metadata - /mcp sub-path (RFC 9728)
+GET {{baseUrl}}/.well-known/oauth-protected-resource/mcp
 
 # ==============================================
 # SERVER INFO (requires auth)
@@ -38,7 +60,7 @@ X-API-Key: {{apiKey}}
 # MCP PROTOCOL - INITIALIZATION
 # ==============================================
 
-### Initialize (protocol 2025-03-26 - Claude Desktop, AI Foundry)
+### Initialize (protocol 2025-03-26 - Claude Desktop, Claude.ai, AI Foundry)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -76,6 +98,18 @@ X-API-Key: {{apiKey}}
   }
 }
 
+### Ping (liveness check)
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "ping",
+  "params": {}
+}
+
 # ==============================================
 # MCP PROTOCOL - DISCOVERY
 # ==============================================
@@ -92,7 +126,7 @@ X-API-Key: {{apiKey}}
   "params": {}
 }
 
-### List Resources (5 contextual resources)
+### List Resources (4 contextual resources)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -104,7 +138,7 @@ X-API-Key: {{apiKey}}
   "params": {}
 }
 
-### List Prompts (5 prompt templates - protocol 2025-03-26 only)
+### List Prompts (12 workflow prompt templates)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -118,9 +152,14 @@ X-API-Key: {{apiKey}}
 
 # ==============================================
 # MCP PROTOCOL - RESOURCES (read)
+# URI format: bc://{tenantId}/{environment}/{resource}
+# Replace <tenant-id> and <environment> with your values
 # ==============================================
 
-### Read Resource: Environment Info
+@tenantId = <your-tenant-id>
+@environment = Sandbox
+
+### Read Resource: Companies List
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -130,11 +169,11 @@ X-API-Key: {{apiKey}}
   "id": 5,
   "method": "resources/read",
   "params": {
-    "uri": "bc://environment/info"
+    "uri": "bc://{{tenantId}}/{{environment}}/companies"
   }
 }
 
-### Read Resource: API Context
+### Read Resource: Entity Categories (available entity/resource names)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -144,11 +183,11 @@ X-API-Key: {{apiKey}}
   "id": 6,
   "method": "resources/read",
   "params": {
-    "uri": "bc://api/context"
+    "uri": "bc://{{tenantId}}/{{environment}}/entities"
   }
 }
 
-### Read Resource: Companies List
+### Read Resource: API Contexts (publisher/group/version combinations)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -158,11 +197,11 @@ X-API-Key: {{apiKey}}
   "id": 7,
   "method": "resources/read",
   "params": {
-    "uri": "bc://companies/list"
+    "uri": "bc://{{tenantId}}/{{environment}}/api-contexts"
   }
 }
 
-### Read Resource: Entities List
+### Read Resource: Full API Metadata (OData EDMX)
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -172,21 +211,7 @@ X-API-Key: {{apiKey}}
   "id": 8,
   "method": "resources/read",
   "params": {
-    "uri": "bc://entities/list"
-  }
-}
-
-### Read Resource: Tools Guide
-POST {{baseUrl}}/mcp
-Content-Type: application/json
-X-API-Key: {{apiKey}}
-
-{
-  "jsonrpc": "2.0",
-  "id": 9,
-  "method": "resources/read",
-  "params": {
-    "uri": "bc://tools/guide"
+    "uri": "bc://{{tenantId}}/{{environment}}/metadata"
   }
 }
 
@@ -194,7 +219,7 @@ X-API-Key: {{apiKey}}
 # MCP PROTOCOL - PROMPTS (get)
 # ==============================================
 
-### Get Prompt: Query Customers
+### Get Prompt: Analyze Customer Financial Health
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -204,15 +229,15 @@ X-API-Key: {{apiKey}}
   "id": 10,
   "method": "prompts/get",
   "params": {
-    "name": "query-customers",
+    "name": "analyze_customer_financial_health",
     "arguments": {
-      "filter": "city eq 'Seattle'",
-      "top": "10"
+      "customer_number": "10000",
+      "period_months": "12"
     }
   }
 }
 
-### Get Prompt: Explore Entities
+### Get Prompt: Create Sales Order Workflow
 POST {{baseUrl}}/mcp
 Content-Type: application/json
 X-API-Key: {{apiKey}}
@@ -222,8 +247,183 @@ X-API-Key: {{apiKey}}
   "id": 11,
   "method": "prompts/get",
   "params": {
-    "name": "explore-entities",
-    "arguments": {}
+    "name": "create_sales_order_workflow",
+    "arguments": {
+      "customer_number": "10000"
+    }
+  }
+}
+
+### Get Prompt: Inventory Stock Check
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "prompts/get",
+  "params": {
+    "name": "inventory_stock_check",
+    "arguments": {
+      "item_number": "1896-S",
+      "quantity_needed": "10"
+    }
+  }
+}
+
+### Get Prompt: Customer Payment Analysis
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "method": "prompts/get",
+  "params": {
+    "name": "customer_payment_analysis",
+    "arguments": {
+      "customer_number": "10000"
+    }
+  }
+}
+
+### Get Prompt: Monthly Financial Close
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "method": "prompts/get",
+  "params": {
+    "name": "monthly_financial_close",
+    "arguments": {
+      "period_month": "3",
+      "period_year": "2026"
+    }
+  }
+}
+
+### Get Prompt: Customer Credit Review
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 15,
+  "method": "prompts/get",
+  "params": {
+    "name": "customer_credit_review",
+    "arguments": {
+      "customer_number": "10000"
+    }
+  }
+}
+
+### Get Prompt: Sales Performance Analysis
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 16,
+  "method": "prompts/get",
+  "params": {
+    "name": "sales_performance_analysis",
+    "arguments": {
+      "period_months": "3"
+    }
+  }
+}
+
+### Get Prompt: Vendor Reconciliation
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "method": "prompts/get",
+  "params": {
+    "name": "vendor_reconciliation",
+    "arguments": {
+      "vendor_number": "10000"
+    }
+  }
+}
+
+### Get Prompt: Post Sales Invoice
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 18,
+  "method": "prompts/get",
+  "params": {
+    "name": "post_sales_invoice",
+    "arguments": {
+      "invoice_number": "103001"
+    }
+  }
+}
+
+### Get Prompt: Create Purchase Order
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 19,
+  "method": "prompts/get",
+  "params": {
+    "name": "create_purchase_order",
+    "arguments": {
+      "vendor_number": "10000"
+    }
+  }
+}
+
+### Get Prompt: Item Profitability Analysis
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "method": "prompts/get",
+  "params": {
+    "name": "item_profitability_analysis",
+    "arguments": {
+      "item_number": "1896-S"
+    }
+  }
+}
+
+### Get Prompt: Bank Reconciliation Workflow
+POST {{baseUrl}}/mcp
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "method": "prompts/get",
+  "params": {
+    "name": "bank_reconciliation_workflow",
+    "arguments": {
+      "bank_account_number": "OPERATING",
+      "statement_date": "2026-03-31"
+    }
   }
 }
 
@@ -238,7 +438,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 20,
+  "id": 30,
   "method": "tools/call",
   "params": {
     "name": "list_bc_api_contexts",
@@ -253,7 +453,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 21,
+  "id": 31,
   "method": "tools/call",
   "params": {
     "name": "get_active_api",
@@ -268,7 +468,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 22,
+  "id": 32,
   "method": "tools/call",
   "params": {
     "name": "set_active_api",
@@ -287,7 +487,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 23,
+  "id": 33,
   "method": "tools/call",
   "params": {
     "name": "set_active_api",
@@ -310,7 +510,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 30,
+  "id": 40,
   "method": "tools/call",
   "params": {
     "name": "list_companies",
@@ -325,7 +525,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 31,
+  "id": 41,
   "method": "tools/call",
   "params": {
     "name": "get_active_company",
@@ -340,7 +540,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 32,
+  "id": 42,
   "method": "tools/call",
   "params": {
     "name": "set_active_company",
@@ -361,7 +561,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 40,
+  "id": 50,
   "method": "tools/call",
   "params": {
     "name": "list_resources",
@@ -376,7 +576,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 41,
+  "id": 51,
   "method": "tools/call",
   "params": {
     "name": "get_odata_metadata",
@@ -395,7 +595,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 42,
+  "id": 52,
   "method": "tools/call",
   "params": {
     "name": "get_resource_schema",
@@ -416,7 +616,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 50,
+  "id": 60,
   "method": "tools/call",
   "params": {
     "name": "list_records",
@@ -435,7 +635,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 51,
+  "id": 61,
   "method": "tools/call",
   "params": {
     "name": "list_records",
@@ -455,7 +655,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 52,
+  "id": 62,
   "method": "tools/call",
   "params": {
     "name": "list_records",
@@ -474,7 +674,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 53,
+  "id": 63,
   "method": "tools/call",
   "params": {
     "name": "list_records",
@@ -493,7 +693,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 54,
+  "id": 64,
   "method": "tools/call",
   "params": {
     "name": "list_records",
@@ -513,7 +713,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 55,
+  "id": 65,
   "method": "tools/call",
   "params": {
     "name": "find_records_by_field",
@@ -532,7 +732,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 56,
+  "id": 66,
   "method": "tools/call",
   "params": {
     "name": "create_record",
@@ -554,7 +754,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 57,
+  "id": 67,
   "method": "tools/call",
   "params": {
     "name": "update_record",
@@ -575,7 +775,7 @@ X-API-Key: {{apiKey}}
 
 {
   "jsonrpc": "2.0",
-  "id": 58,
+  "id": 68,
   "method": "tools/call",
   "params": {
     "name": "delete_record",
@@ -590,19 +790,27 @@ X-API-Key: {{apiKey}}
 # OAUTH ENDPOINTS (when AUTH_MODE=oauth)
 # ==============================================
 
-### DCR - Register Client
+### DCR - Register Client (public, no auth required - rate-limited only)
 POST {{baseUrl}}/oauth/register
 Content-Type: application/json
-X-API-Key: {{apiKey}}
 
 {
   "client_name": "test-client",
   "redirect_uris": ["https://example.com/callback"]
 }
 
-### DCR - List Registered Clients
+### DCR - List Registered Clients (requires auth)
 GET {{baseUrl}}/oauth/clients
 X-API-Key: {{apiKey}}
+
+### OAuth Authorize (redirects to Azure AD)
+# Open in browser: {{baseUrl}}/authorize?client_id=<client-id>&redirect_uri=<redirect-uri>&response_type=code&scope=openid
+
+### OAuth Token Exchange (proxy to Azure AD)
+POST {{baseUrl}}/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=<auth-code>&redirect_uri=<redirect-uri>&client_id=<client-id>
 
 # ==============================================
 # USING BEARER TOKEN (OAuth flow)
@@ -628,6 +836,48 @@ Authorization: Bearer <your-oauth-token>
     "capabilities": {},
     "clientInfo": {
       "name": "oauth-test",
+      "version": "1.0.0"
+    }
+  }
+}
+
+# ==============================================
+# URL-BASED MULTI-TENANT ENDPOINTS
+# ==============================================
+
+### Initialize via URL-based config (Standard BC API)
+POST {{baseUrl}}/{{tenantId}}/{{environment}}/api/v2.0/companies(<company-uuid>)
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "url-config-test",
+      "version": "1.0.0"
+    }
+  }
+}
+
+### Initialize via URL-based config (Custom/ISV API)
+POST {{baseUrl}}/{{tenantId}}/{{environment}}/api/microsoft/automation/v1.0/companies(<company-uuid>)
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "custom-api-test",
       "version": "1.0.0"
     }
   }

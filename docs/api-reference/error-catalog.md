@@ -2,7 +2,7 @@
 
 ## Overview
 
-MCP Central implements a comprehensive error handling system with structured error codes, detailed messages, and clear resolution guidance. This catalog documents all error conditions and their appropriate responses.
+The Business Central MCP Server implements a comprehensive error handling system with structured error codes, detailed messages, and clear resolution guidance. This catalog documents all error conditions and their appropriate responses.
 
 ## Error Structure
 

@@ -1,6 +1,6 @@
 # Documentation
 
-Business Central MCP Server v2.2.7
+Business Central MCP Server
 
 ---
 
@@ -9,18 +9,17 @@ Business Central MCP Server v2.2.7
 | Document | Description |
 | -------- | ----------- |
 | [Quick Start](QUICK_START.md) | npm/npx setup (2 min) and Azure deployment overview |
-| [MCP Client Setup](MCP_CLIENT_SETUP.md) | Configure Claude Desktop, Claude Code, Cursor, Cline |
-| [Copilot Studio](COPILOT_STUDIO_COMPLETE_SETUP.md) | Microsoft Copilot Studio integration (HTTP/SSE) |
-| [Azure AI Foundry](azure-ai-foundry/QUICK_SETUP.md) | Azure AI Foundry agent setup (HTTP/SSE) |
+| [MCP Client Setup](MCP_CLIENT_SETUP.md) | Configure Claude Desktop, Claude Code, Cursor, Cline, Claude.ai, Copilot Studio, Azure AI Foundry |
+| [Copilot Studio](COPILOT_STUDIO_COMPLETE_SETUP.md) | Microsoft Copilot Studio integration (OAuth Dynamic Discovery) |
+| [Azure AI Foundry](azure-ai-foundry/QUICK_SETUP.md) | Azure AI Foundry agent setup |
 
 ## Deployment & Operations
 
 | Document | Description |
 | -------- | ----------- |
-| [Deployment Guide](DEPLOYMENT.md) | Azure Container Apps deployment |
-| [DCR Setup](DCR_SETUP_GUIDE.md) | OAuth 2.0 Dynamic Client Registration |
+| [Deployment Guide](DEPLOYMENT.md) | Azure Container Apps deployment, app registration, CI/CD |
+| [DCR Setup](DCR_SETUP_GUIDE.md) | OAuth 2.0 Dynamic Client Registration and discovery endpoints |
 | [Key Vault Migration](KEY_VAULT_MIGRATION_GUIDE.md) | Move secrets to Azure Key Vault |
-| [Troubleshooting (Copilot)](TROUBLESHOOTING_COPILOT_STUDIO.md) | Copilot Studio connectivity issues |
 
 ## Architecture
 
@@ -58,5 +57,5 @@ Business Central MCP Server v2.2.7
 
 ## Support
 
-- [GitHub Issues](https://github.com/olederkach/business-central-mcp-server/issues) - Bug reports
-- [Security Policy](../SECURITY.md) - Vulnerability reporting
+- [GitHub Issues](https://github.com/olederkach/business-central-mcp-server/issues) -- Bug reports
+- [Security Policy](../SECURITY.md) -- Vulnerability reporting

@@ -5,9 +5,9 @@ This guide shows you how to quickly configure your Business Central MCP Server f
 ## Problem
 
 When configuring an MCP server in Azure AI Foundry, you see:
-- ❌ **Inputs**: Optional inputs are available to add
-- ❌ **Tools**: No tools available
-- ❌ **Resources**: No resources available
+- **Inputs**: Optional inputs are available to add
+- **Tools**: No tools available
+- **Resources**: No resources available
 
 ## Solution
 
@@ -91,9 +91,9 @@ Scope: api://<client-id>/MCP.Access
 6. Select your "Business Central MCP" connection
 
 **Now you should see**:
-- ✅ **Inputs**: (none needed - configured via environment variables)
-- ✅ **Tools**: 14 tools listed (list_companies, set_active_company, list_resources, list_records, create_record, etc.)
-- ✅ **Resources**: 4 resources listed (Companies List, Entity Categories, API Contexts, Full API Metadata)
+- **Inputs**: (none needed - configured via environment variables)
+- **Tools**: 14 tools listed (list_companies, set_active_company, list_resources, list_records, create_record, etc.)
+- **Resources**: 4 resources listed (Companies List, Entity Categories, API Contexts, Full API Metadata)
 
 ## Step 4: Test the Configuration
 
@@ -198,27 +198,27 @@ Expected Result: Returns first 10 customers from active company
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BC_TENANT_ID` | ✅ Yes | - | Business Central tenant ID (GUID) |
-| `BC_ENVIRONMENT_NAME` | ✅ Yes | - | BC environment name (e.g., "Sandbox", "Production") |
-| `BC_COMPANY_ID` | ⚠️  Recommended | First company | Default company ID (GUID) |
-| `BC_API_VERSION` | ❌ No | `v2.0` | BC API version |
-| `BC_CLIENT_ID` | ✅ Yes | - | App registration client ID for BC API |
-| `BC_CLIENT_SECRET` | ✅ Yes | - | App registration client secret for BC API |
-| `AZURE_TENANT_ID` | ⚠️  If OAuth | - | Azure AD tenant ID (for MCP endpoint OAuth) |
-| `AZURE_CLIENT_ID` | ⚠️  If OAuth | - | App registration client ID (for MCP endpoint OAuth) |
-| `AZURE_CLIENT_SECRET` | ⚠️  If OAuth | - | App registration client secret (for MCP endpoint OAuth) |
-| `MCP_API_KEYS` | ⚠️  If API Key | - | API keys for MCP endpoint (comma-separated, base64-encoded) |
+| `BC_TENANT_ID` | Yes | - | Business Central tenant ID (GUID) |
+| `BC_ENVIRONMENT_NAME` | Yes | - | BC environment name (e.g., "Sandbox", "Production") |
+| `BC_COMPANY_ID` | Recommended | First company | Default company ID (GUID) |
+| `BC_API_VERSION` | No | `v2.0` | BC API version |
+| `BC_CLIENT_ID` | Yes | - | App registration client ID for BC API |
+| `BC_CLIENT_SECRET` | Yes | - | App registration client secret for BC API |
+| `AZURE_TENANT_ID` | If OAuth | - | Azure AD tenant ID (for MCP endpoint OAuth) |
+| `AZURE_CLIENT_ID` | If OAuth | - | App registration client ID (for MCP endpoint OAuth) |
+| `AZURE_CLIENT_SECRET` | If OAuth | - | App registration client secret (for MCP endpoint OAuth) |
+| `MCP_API_KEYS` | If API Key | - | API keys for MCP endpoint (comma-separated, base64-encoded) |
 
 ## Why This Works
 
 The `/mcp` endpoint:
-- ✅ Supports **BOTH** URL-based config AND environment variables
-- ✅ Tries URL config first, falls back to env vars automatically
-- ✅ Returns proper MCP protocol responses
-- ✅ Exposes 14 generic tools
-- ✅ Exposes discoverable resources
-- ✅ Works with Azure AI Foundry's expectations
-- ✅ Caches resources for performance
+- Supports **BOTH** URL-based config AND environment variables
+- Tries URL config first, falls back to env vars automatically
+- Returns proper MCP protocol responses
+- Exposes 14 generic tools
+- Exposes discoverable resources
+- Works with Azure AI Foundry's expectations
+- Caches resources for performance
 
 Configuration options:
 ```
@@ -233,11 +233,11 @@ Mode 2: URL-based (Advanced, multi-tenant)
 
 ## Next Steps
 
-1. ✅ Configure environment variables in Azure Container App
-2. ✅ Add MCP connection in Azure AI Foundry
-3. ✅ Create agent and add tools
-4. ✅ Test basic operations (list_companies, list_resources)
-5. 🔨 Build your AI agent workflows!
+1. Configure environment variables in Azure Container App
+2. Add MCP connection in Azure AI Foundry
+3. Create agent and add tools
+4. Test basic operations (list_companies, list_resources)
+5. Build your AI agent workflows!
 
 ## See Also
 
