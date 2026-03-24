@@ -4,7 +4,7 @@ Model Context Protocol server for Microsoft Dynamics 365 Business Central.
 
 > Connect AI agents to Business Central data — from a single `npx` command for developers to a full Azure deployment for enterprise.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue)](CHANGELOG.md)
 [![MCP Protocol](https://img.shields.io/badge/MCP-2024--11--05-green)](https://modelcontextprotocol.io)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
