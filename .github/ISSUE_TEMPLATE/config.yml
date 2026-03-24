@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/olederkach/business-central-mcp-server/blob/main/SECURITY.md
+    about: Report security vulnerabilities privately — do NOT open a public issue
