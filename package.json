@@ -90,7 +90,7 @@
     "jwks-rsa": "^3.2.0",
     "lru-cache": "^10.0.0",
     "prom-client": "^15.0.0",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
